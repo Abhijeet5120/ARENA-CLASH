@@ -30,7 +30,8 @@ const withPWA = withPWAInit({
 });
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  output: 'export', // Configure for static export
+  trailingSlash: true, // Recommended for static exports for cleaner URLs
   typescript: {
     ignoreBuildErrors: true,
   },
@@ -52,6 +53,7 @@ const nextConfig: NextConfig = {
         pathname: '/**',
       }
     ],
+    unoptimized: true, // Required for static export with next/image if not using a custom loader
   },
 };
 

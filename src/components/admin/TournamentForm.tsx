@@ -21,14 +21,14 @@ import { getGameById, type Game } from '@/data/games';
 import type { Tournament } from '@/data/tournaments';
 import { useAdminContext } from '@/context/AdminContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Separator } from '@/components/ui/separator';
 import { DatePicker } from '@/components/ui/date-picker';
 import { useToast } from '@/hooks/use-toast';
 import Image from 'next/image';
 import { Spinner } from '@/components/ui/spinner';
-import { Save, XCircle, AlertCircle, UploadCloud, CheckCircle, ImageOff, Puzzle, SparklesIcon, CalendarDays, Settings, Info, DollarSign, Users, Crown, Images } from 'lucide-react';
+import { Save, XCircle, AlertCircle, UploadCloud, CheckCircle, ImageOff, Puzzle, SparklesIcon, CalendarDays, Settings, Info, DollarSign, Users, Crown, Images, Layers } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Separator } from '../ui/separator';
 
 
 const tournamentFormSchema = z.object({
@@ -80,16 +80,13 @@ export function TournamentForm({ onSubmit, initialData, games, onCancel }: Tourn
 
   const { register, handleSubmit, control, formState: { errors, isSubmitting }, reset, setValue, watch, getValues } = useForm<TournamentFormValues>({
     resolver: zodResolver(tournamentFormSchema),
-    // Default values are set in the useEffect hook below for better control
   });
 
   const watchedGameId = watch('gameId');
   const watchedImageUrl = watch('imageUrl');
-  const currentEntryFeeCurrency = watch('entryFeeCurrency');
   const watchedTournamentDate = watch('tournamentDate');
-  const watchedRegistrationCloseDate = watch('registrationCloseDate');
 
-  // Effect for initial form population (on mount or when initialData/games change)
+  // Effect for initial form population
   useEffect(() => {
     const initializeForm = async () => {
       setIsLoadingGameDetails(true);
@@ -102,10 +99,7 @@ export function TournamentForm({ onSubmit, initialData, games, onCancel }: Tourn
           setSelectedGameDetails(gameDataForInit);
         } catch (error) {
           toast({ title: "Error", description: "Could not load initial game details.", variant: "destructive" });
-          setSelectedGameDetails(null);
         }
-      } else {
-        setSelectedGameDetails(null);
       }
 
       const defaultGameModeId = gameDataForInit?.gameModes?.[0]?.id || 'default';
@@ -146,111 +140,92 @@ export function TournamentForm({ onSubmit, initialData, games, onCancel }: Tourn
       }
       setIsLoadingGameDetails(false);
     };
-    initializeForm();
+    if (games.length > 0 || isEditMode) {
+        initializeForm();
+    } else {
+        setIsLoadingGameDetails(false); // No games, no initial data to load
+         reset({ // Reset with defaults for an empty form if no games and not edit mode
+          name: '',
+          gameId: '',
+          gameModeId: 'default',
+          isSpecial: false,
+          tournamentDate: undefined,
+          registrationCloseDate: undefined,
+          entryFee: 0,
+          entryFeeCurrency: defaultEntryFeeCurrency,
+          region: defaultRegion,
+          prizePool: '',
+          imageUrl: '',
+          totalSpots: 32,
+        });
+    }
   }, [isEditMode, initialData, games, reset, toast, defaultEntryFeeCurrency, defaultRegion]);
 
 
-  // Effect to fetch and update game details when watchedGameId changes
+  // Effect to fetch game details and update related form fields when watchedGameId changes
   useEffect(() => {
-    const fetchGameDetails = async () => {
-      if (watchedGameId) {
-        // Avoid refetching if it's the initial game in edit mode and details are already loaded
-        if (isEditMode && initialData?.gameId === watchedGameId && selectedGameDetails?.id === watchedGameId) {
-          return;
+    const fetchGameDetailsAndUpdateForm = async () => {
+      if (!watchedGameId) {
+        setSelectedGameDetails(null);
+        setValue('gameModeId', 'default', { shouldValidate: true, shouldDirty: true });
+        if (!getValues('imageUrl')?.startsWith('data:image/')) {
+            setValue('imageUrl', '', { shouldValidate: true, shouldDirty: true });
         }
-        // Avoid refetching if details for the current watchedGameId are already loaded
-        if (selectedGameDetails?.id === watchedGameId) {
-           // If details are already loaded for this game, ensure form fields are synced, especially gameModeId
-            const currentSelectedGameFirstMode = selectedGameDetails.gameModes?.[0]?.id || 'default';
-            if (getValues('gameModeId') !== currentSelectedGameFirstMode && (selectedGameDetails.gameModes || []).length > 0) {
-                 // This might happen if the form was reset to a different game's mode
-                setValue('gameModeId', currentSelectedGameFirstMode, { shouldValidate: true, shouldDirty: true });
-            }
-            return;
+        setCustomBannerPreview(null);
+        return;
+      }
+       // Avoid re-fetch if details already match watchedGameId, unless form is dirty/new
+      if (selectedGameDetails?.id === watchedGameId && !isEditMode && initialData?.gameId !== watchedGameId) { // Added check for edit mode initial game
+         // If current game details match and it's not the initial game of an edit form, skip re-fetch
+         // but ensure mode is set if it was default
+        if (getValues('gameModeId') === 'default' && (selectedGameDetails.gameModes || []).length > 0) {
+          setValue('gameModeId', selectedGameDetails.gameModes[0].id, { shouldValidate: true, shouldDirty: true });
         }
+        return;
+      }
 
 
-        setIsLoadingGameDetails(true);
-        try {
-          const gameData = await getGameById(watchedGameId);
-          setSelectedGameDetails(gameData); // This triggers the next useEffect
-        } catch (error) {
-          console.error("Failed to fetch game details:", error);
-          setSelectedGameDetails(null);
-          toast({ title: "Error", description: "Could not load details for the selected game.", variant: "destructive" });
-        } finally {
-          setIsLoadingGameDetails(false);
+      setIsLoadingGameDetails(true);
+      try {
+        const gameData = await getGameById(watchedGameId);
+        setSelectedGameDetails(gameData);
+
+        const newGameModeId = gameData?.gameModes?.[0]?.id || 'default';
+        setValue('gameModeId', newGameModeId, { shouldValidate: true, shouldDirty: true });
+        
+        const currentImageUrl = getValues('imageUrl');
+        if (!currentImageUrl || !currentImageUrl.startsWith('data:image/')) { // Only update if not custom
+          setValue('imageUrl', gameData?.frequentlyUsedBanners?.[0] || gameData?.bannerImageUrl || gameData?.imageUrl || '', { shouldValidate: true, shouldDirty: true });
+          setCustomBannerPreview(null);
         }
-      } else {
-        setSelectedGameDetails(null); // No game selected, clear details
+
+      } catch (error) {
+        console.error("Failed to fetch game details:", error);
+        setSelectedGameDetails(null);
+        setValue('gameModeId', 'default', { shouldValidate: true, shouldDirty: true });
+         if (!getValues('imageUrl')?.startsWith('data:image/')) {
+            setValue('imageUrl', '', { shouldValidate: true, shouldDirty: true });
+        }
+        setCustomBannerPreview(null);
+        toast({ title: "Error", description: "Could not load details for the selected game.", variant: "destructive" });
+      } finally {
+        setIsLoadingGameDetails(false);
       }
     };
-    fetchGameDetails();
-  }, [watchedGameId, isEditMode, initialData?.gameId, toast, selectedGameDetails, getValues, setValue]);
 
-
-  // Effect to update form fields when selectedGameDetails (and thus game modes) change
-  useEffect(() => {
-    if (selectedGameDetails) {
-      const newGameModeId = selectedGameDetails.gameModes?.[0]?.id || 'default';
-      // Only set if the current gameModeId is not valid for the new set of modes
-      // or if the form's gameId truly matches the selectedGameDetails.id (to avoid stale updates)
-      if (getValues('gameId') === selectedGameDetails.id) {
-        const currentModeId = getValues('gameModeId');
-        const modeExists = selectedGameDetails.gameModes?.some(mode => mode.id === currentModeId);
-        if (!modeExists || currentModeId === 'default') {
-            setValue('gameModeId', newGameModeId, { shouldValidate: true, shouldDirty: true });
+    // Trigger fetch if watchedGameId changes, or if it's edit mode and it's the initial load for that game
+    if (watchedGameId && (watchedGameId !== initialData?.gameId || !selectedGameDetails || selectedGameDetails.id !== watchedGameId)) {
+        fetchGameDetailsAndUpdateForm();
+    } else if (!watchedGameId && selectedGameDetails) { // Clear if gameId is unselected
+        setSelectedGameDetails(null);
+        setValue('gameModeId', 'default', { shouldValidate: true, shouldDirty: true });
+         if (!getValues('imageUrl')?.startsWith('data:image/')) {
+            setValue('imageUrl', '', { shouldValidate: true, shouldDirty: true });
         }
-      }
-
-
-      const currentImageUrl = getValues('imageUrl');
-      const isCustomBanner = (currentImageUrl || '').startsWith('data:image/');
-      
-      // Only update banner if it's not a custom uploaded one OR if the gameId just changed
-      // and the current banner is not custom (meaning it was from a previous game's frequent list).
-      const previousGameId = getValues('gameId'); // This needs to be compared more carefully
-                                               // For now, we assume if gameId changes, and not custom, update banner.
-                                               // This might overwrite if the previous game's banner was intentionally chosen.
-
-      if (!isCustomBanner) {
-         setValue('imageUrl', selectedGameDetails.frequentlyUsedBanners?.[0] || selectedGameDetails.bannerImageUrl || selectedGameDetails.imageUrl || '', { shouldValidate: true });
-         setCustomBannerPreview(null);
-      } else if (watchedGameId !== getValues('gameId') && isCustomBanner) {
-        // If game changed AND user had a custom banner, maybe we SHOULD clear it? Or let them keep it?
-        // Current logic: keeps custom banner across game changes.
-        // To clear custom banner when game changes:
-        // setValue('imageUrl', selectedGameDetails.frequentlyUsedBanners?.[0] || selectedGameDetails.bannerImageUrl || selectedGameDetails.imageUrl || '', { shouldValidate: true });
-        // setCustomBannerPreview(null);
-      }
-
-
-    } else {
-      // No game selected or details failed to load
-      setValue('gameModeId', 'default', { shouldValidate: true, shouldDirty: true });
-      if (!getValues('imageUrl')?.startsWith('data:image/')) { // Don't clear custom banner if no game selected
-        setValue('imageUrl', '', { shouldValidate: true });
         setCustomBannerPreview(null);
-      }
     }
-  }, [selectedGameDetails, setValue, getValues, watchedGameId]);
 
-
-  useEffect(() => {
-    if (watchedTournamentDate && watchedRegistrationCloseDate) {
-      const tournamentDayStart = new Date(new Date(watchedTournamentDate).setHours(0, 0, 0, 0));
-      const regCloseDayStart = new Date(new Date(watchedRegistrationCloseDate).setHours(0, 0, 0, 0));
-      if (regCloseDayStart >= tournamentDayStart) {
-        setValue('registrationCloseDate', undefined, { shouldValidate: true });
-        toast({
-          title: "Date Adjusted",
-          description: "Registration close date was automatically cleared as it must be before the tournament date.",
-          variant: "default",
-          duration: 5000,
-        });
-      }
-    }
-  }, [watchedTournamentDate, watchedRegistrationCloseDate, setValue, toast]);
+  }, [watchedGameId, initialData?.gameId, isEditMode, setValue, getValues, toast, selectedGameDetails]); // Added selectedGameDetails
 
 
   const todayStart = useMemo(() => new Date(new Date().setHours(0, 0, 0, 0)), []);
@@ -280,7 +255,7 @@ export function TournamentForm({ onSubmit, initialData, games, onCancel }: Tourn
     const reader = new FileReader();
     reader.onloadend = () => {
       const dataUri = reader.result as string;
-      setValue('imageUrl', dataUri, { shouldValidate: true });
+      setValue('imageUrl', dataUri, { shouldValidate: true, shouldDirty: true });
       setCustomBannerPreview(dataUri);
       toast({ title: 'Custom Banner Selected', description: 'Preview updated. Save changes to apply.' });
     };
@@ -290,6 +265,8 @@ export function TournamentForm({ onSubmit, initialData, games, onCancel }: Tourn
     reader.readAsDataURL(file);
     if(event.target) event.target.value = '';
   };
+  
+  const previewSrc = customBannerPreview || watchedImageUrl;
 
 
   return (
@@ -299,7 +276,7 @@ export function TournamentForm({ onSubmit, initialData, games, onCancel }: Tourn
 
       <Card className="bg-card/80 backdrop-blur-sm shadow-lg rounded-xl">
         <CardHeader>
-          <CardTitle className="text-xl flex items-center"><Info className="mr-2 h-5 w-5 text-primary"/>Core Details</CardTitle>
+          <CardTitle className="text-xl flex items-center"><Layers className="mr-2 h-5 w-5 text-primary"/>Core Details</CardTitle>
           <CardDescription>Basic information about the tournament for the <span className="font-semibold">{getValues('region')}</span> region.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -309,7 +286,7 @@ export function TournamentForm({ onSubmit, initialData, games, onCancel }: Tourn
             {errors.name && <p className="text-sm text-destructive mt-1 flex items-center"><AlertCircle className="mr-1 h-4 w-4" />{errors.name.message}</p>}
           </div>
 
-          <div className="space-y-4"> {/* Changed from grid to space-y for vertical stacking */}
+          <div className="space-y-4">
             <div className="space-y-1.5">
               <Label htmlFor="gameId">Game</Label>
               <Controller
@@ -319,7 +296,6 @@ export function TournamentForm({ onSubmit, initialData, games, onCancel }: Tourn
                   <Select
                     onValueChange={(value) => {
                       field.onChange(value);
-                      // watchedGameId useEffect will handle dependent field updates
                     }}
                     value={field.value}
                     disabled={isEditMode || games.length === 0}
@@ -345,7 +321,7 @@ export function TournamentForm({ onSubmit, initialData, games, onCancel }: Tourn
             <div className="space-y-1.5">
               <Label htmlFor="gameModeId" className="flex items-center"><Puzzle className="mr-2 h-4 w-4 text-muted-foreground"/>Game Mode</Label>
               <Controller
-                key={selectedGameDetails?.id || 'no-game-selected-for-mode'} // Re-mount when actual game details change
+                key={selectedGameDetails?.id || 'no-game-selected-for-mode'} 
                 name="gameModeId"
                 control={control}
                 render={({ field }) => (
@@ -447,7 +423,7 @@ export function TournamentForm({ onSubmit, initialData, games, onCancel }: Tourn
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <Label htmlFor="entryFee" className="flex items-center"><DollarSign className="mr-2 h-4 w-4 text-muted-foreground"/>Entry Fee ({currentEntryFeeCurrency})</Label>
+              <Label htmlFor="entryFee" className="flex items-center"><DollarSign className="mr-2 h-4 w-4 text-muted-foreground"/>Entry Fee ({getValues('entryFeeCurrency')})</Label>
               <Input id="entryFee" type="number" {...register('entryFee')} className={errors.entryFee ? 'border-destructive' : ''} placeholder="0.00" step="0.01" />
               {errors.entryFee && <p className="text-sm text-destructive mt-1 flex items-center"><AlertCircle className="mr-1 h-4 w-4" />{errors.entryFee.message}</p>}
             </div>
@@ -493,7 +469,7 @@ export function TournamentForm({ onSubmit, initialData, games, onCancel }: Tourn
                         type="button"
                         key={index}
                         onClick={() => {
-                            setValue('imageUrl', bannerUrl, {shouldValidate: true});
+                            setValue('imageUrl', bannerUrl, {shouldValidate: true, shouldDirty: true});
                             setCustomBannerPreview(null); 
                         }}
                         className={`relative aspect-video rounded-md overflow-hidden border-2 transition-all duration-200 hover:opacity-80 focus:outline-none
@@ -542,17 +518,17 @@ export function TournamentForm({ onSubmit, initialData, games, onCancel }: Tourn
               <p className="text-xs text-muted-foreground">Max 5MB. Overrides frequent banner selection.</p>
             </div>
 
-            {(customBannerPreview || (watchedImageUrl && watchedImageUrl.startsWith('data:image/'))) && (
+            {previewSrc && (
               <div className="mt-4">
                 <Label>Selected Banner Preview:</Label>
                 <div className="mt-2 aspect-video w-full max-w-xs rounded-md border overflow-hidden bg-muted/30 backdrop-blur-sm shadow-inner">
-                  <Image src={customBannerPreview || watchedImageUrl!} alt="Selected banner preview" fill style={{objectFit:"cover"}} key={customBannerPreview || watchedImageUrl} />
+                  <Image src={previewSrc} alt="Selected banner preview" fill style={{objectFit:"cover"}} key={previewSrc} />
                 </div>
               </div>
             )}
-             {(!watchedImageUrl || (!watchedImageUrl.startsWith('data:image/') && !(selectedGameDetails?.frequentlyUsedBanners || []).includes(watchedImageUrl))) && !customBannerPreview && (
-                <p className="text-xs text-muted-foreground mt-2">No banner selected. A default placeholder will be used if no game-specific default is set.</p>
-             )}
+            {!previewSrc && (
+               <p className="text-xs text-muted-foreground mt-2">No banner selected. A default placeholder will be used if no game-specific default is set.</p>
+            )}
             {errors.imageUrl && <p className="text-sm text-destructive mt-1 flex items-center"><AlertCircle className="mr-1 h-4 w-4" />{errors.imageUrl.message}</p>}
           </div>
         </CardContent>
@@ -573,7 +549,7 @@ export function TournamentForm({ onSubmit, initialData, games, onCancel }: Tourn
             isLoadingGameDetails || 
             (!selectedGameDetails && !!watchedGameId) || 
             (selectedGameDetails && (selectedGameDetails.gameModes || []).length === 0 && !!watchedGameId) ||
-            getValues('gameModeId') === 'default' // Disable if gameModeId is still "default"
+            getValues('gameModeId') === 'default'
           } 
           className="w-full sm:w-auto transform hover:scale-105 transition-transform rounded-lg"
         >
@@ -584,3 +560,4 @@ export function TournamentForm({ onSubmit, initialData, games, onCancel }: Tourn
     </form>
   );
 }
+

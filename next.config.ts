@@ -30,8 +30,6 @@ const withPWA = withPWAInit({
 });
 
 const nextConfig: NextConfig = {
-  output: 'export', // Configure for static export
-  trailingSlash: true, // Recommended for static exports for cleaner URLs
   typescript: {
     ignoreBuildErrors: true,
   },

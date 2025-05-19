@@ -1,0 +1,44 @@
+
+name: Next.js CI
+
+on:
+  push:
+    branches: [ main ] # Or your default branch, e.g., master
+  pull_request:
+    branches: [ main ] # Or your default branch
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x] # You can specify Node.js versions to test against
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm' # Or 'yarn' if you use Yarn
+
+    - name: Install dependencies
+      run: npm install # Or yarn install
+
+    - name: Run linter
+      run: npm run lint # Assumes you have a 'lint' script in package.json
+
+    - name: Run type checking
+      run: npm run typecheck # Assumes you have a 'typecheck' script in package.json
+
+    - name: Build Next.js application
+      run: npm run build # Or yarn build
+      env:
+        # You might need to set environment variables required for your build here
+        # For example, if your Firebase config is needed at build time (though usually it's public)
+        # NEXT_PUBLIC_FIREBASE_API_KEY: ${{ secrets.NEXT_PUBLIC_FIREBASE_API_KEY }}
+        # GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+        CI: true

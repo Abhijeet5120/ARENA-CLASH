@@ -1,0 +1,157 @@
+ @tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 30 80% 95%; /* Light Cream/Peach from #FCD0AD - Base */
+    --foreground: 25 50% 25%; /* Darker, richer brown for better contrast */
+
+    --card: 28 75% 97%; /* Slightly off-white peach */
+    --card-foreground: 25 50% 25%; 
+
+    --popover: 28 75% 97%; 
+    --popover-foreground: 25 50% 25%;
+
+    --primary: 15 90% 65%; /* Adjusted from #FCD0AD - more vibrant like #FF8C69 (Spiced Coral) */
+    --primary-foreground: 20 30% 15%; /* Dark brown for text on primary */
+
+    --secondary: 30 75% 90%; /* Lighter peach - #FADEC9 */
+    --secondary-foreground: 25 40% 30%; /* Medium-dark brown */
+
+    --muted: 30 60% 88%; /* Muted peach-gray - #F5E6DA */
+    --muted-foreground: 25 30% 45%; /* Softer brown-gray */
+
+    --accent: 180 60% 50%; /* Teal - #00BCD4 - for contrast and interactive elements */
+    --accent-foreground: 0 0% 100%; /* White text on accent */
+
+    --destructive: 0 70% 55%; /* A slightly softer, but still alarming red */
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 28 50% 82%; /* Softer peach-brown border - #ECCDBF */
+    --input: 28 50% 82%; 
+    --ring: 15 90% 65%; /* Primary color for focus rings */
+
+    --radius: 0.75rem; /* Increased for more rounded corners */
+
+    /* Chart colors adjusted to harmonize with the new theme */
+    --chart-1: hsl(var(--primary)); 
+    --chart-2: 35 70% 60%;   /* Peachy gold */
+    --chart-3: 180 50% 40%;  /* Darker Teal */
+    --chart-4: 25 60% 75%;   /* Light terracotta */
+    --chart-5: 0 50% 65%;    /* Muted rose */
+
+    /* Sidebar variables */
+    --sidebar-background: hsl(var(--card));
+    --sidebar-foreground: hsl(var(--card-foreground));
+    --sidebar-primary: hsl(var(--primary));
+    --sidebar-primary-foreground: hsl(var(--primary-foreground));
+    --sidebar-accent: hsl(var(--secondary)); 
+    --sidebar-accent-foreground: hsl(var(--secondary-foreground)); 
+    --sidebar-border: hsl(var(--border));
+    --sidebar-ring: hsl(var(--accent));
+  }
+
+  .dark {
+    --background: 220 15% 5%; /* Even Darker base */
+    --foreground: 220 10% 90%; /* Lighter gray for text */
+
+    --card: 220 13% 12%; /* Slightly lighter dark gray for cards */
+    --card-foreground: 220 10% 90%;
+
+    --popover: 220 13% 12%;
+    --popover-foreground: 220 10% 90%;
+
+    --primary: 15 90% 65%; /* Spiced Coral - vibrant for dark mode */
+    --primary-foreground: 20 30% 10%; /* Very dark brown for text on primary */
+
+    --secondary: 220 10% 18%; /* Darker gray */
+    --secondary-foreground: 220 10% 80%; /* Lighter gray */
+
+    --muted: 220 8% 22%; /* Even darker gray */
+    --muted-foreground: 220 10% 65%; /* Medium gray */
+
+    --accent: 180 70% 55%; /* Teal, more vibrant for dark mode */
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 70% 55%; /* Destructive red */
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 220 10% 25%; /* Subtle dark border */
+    --input: 220 10% 25%;
+    --ring: 15 90% 65%; /* Primary color for focus rings */
+    
+    /* Dark Chart colors adjusted */
+    --chart-1: hsl(var(--primary));
+    --chart-2: 35 80% 60%;   /* Brighter gold */
+    --chart-3: 180 65% 45%;  /* Adjusted Teal */
+    --chart-4: 25 70% 70%;   /* Brighter terracotta */
+    --chart-5: 0 60% 65%;    /* Brighter rose */
+
+    /* Dark Sidebar variables */
+    --sidebar-background: hsl(var(--card));
+    --sidebar-foreground: hsl(var(--card-foreground));
+    --sidebar-primary: hsl(var(--primary));
+    --sidebar-primary-foreground: hsl(var(--primary-foreground));
+    --sidebar-accent: hsl(var(--secondary));
+    --sidebar-accent-foreground: hsl(var(--secondary-foreground));
+    --sidebar-border: hsl(var(--border));
+    --sidebar-ring: hsl(var(--accent));
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    /* font-family removed to allow next/font to take precedence */
+  }
+}
+
+@layer utilities {
+  .animate-breathing {
+    animation: breathing 2s ease-in-out infinite;
+  }
+  .animate-breathing-soft {
+    animation: breathing-soft 2.5s ease-in-out infinite;
+  }
+  .animated-gradient-text {
+    background-image: linear-gradient(to right, hsl(220, 90%, 60%), hsl(270, 90%, 65%), hsl(330, 90%, 60%), hsl(270, 90%, 65%), hsl(220, 90%, 60%)); /* Blue -> Purple -> Pink -> Purple -> Blue */
+    background-size: 300% auto; /* Increased size for smoother transition */
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    -webkit-text-fill-color: transparent; /* For Safari */
+    animation: animate-gradient-text 6s linear infinite; /* Slower animation */
+  }
+}
+
+@keyframes breathing {
+  0%, 100% {
+    transform: scale(1);
+    filter: drop-shadow(0 0 3px hsla(var(--primary), 0.4)) drop-shadow(0 0 6px hsla(var(--primary), 0.2));
+  }
+  50% {
+    transform: scale(1.08);
+    filter: drop-shadow(0 0 10px hsla(var(--primary), 0.6)) drop-shadow(0 0 15px hsla(var(--primary), 0.3));
+  }
+}
+
+@keyframes breathing-soft {
+  0%, 100% {
+    transform: scale(1);
+    filter: drop-shadow(0 0 2px hsla(var(--primary), 0.3)) drop-shadow(0 0 4px hsla(var(--primary), 0.15));
+  }
+  50% {
+    transform: scale(1.03);
+    filter: drop-shadow(0 0 5px hsla(var(--primary), 0.5)) drop-shadow(0 0 8px hsla(var(--primary), 0.25));
+  }
+}
+
+@keyframes animate-gradient-text {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}

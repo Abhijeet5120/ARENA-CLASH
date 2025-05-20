@@ -36,7 +36,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Spinner } from '@/components/ui/spinner';
 import { format, parseISO, isValid } from 'date-fns';
-import { PlusCircle, Search, Users, Edit3, Trash2, CalendarClock, Settings } from 'lucide-react';
+import { PlusCircle, Search, Users, Edit3, Trash2, CalendarClock, Settings, AlertTriangle } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 
 
@@ -101,12 +101,16 @@ export default function AdminTournamentsPage() {
       if (!isValid(date)) {
         return "Invalid Date";
       }
-      const formatString = includeTime ? "MMM d, yyyy, HH:mm zzz" : "MMM d, yyyy";
+      const formatString = includeTime ? "MMM d, yyyy, HH:mm" : "MMM d, yyyy"; // Removed zzz for simplicity with local time
       return format(date, formatString);
     } catch (e) {
       console.warn("Error formatting date:", dateString, e);
       return dateString;
     }
+  };
+
+  const getTournamentCurrencyDisplay = (tournament: Tournament) => {
+    return adminSelectedRegion === 'INDIA' ? 'INR' : tournament.entryFeeCurrency;
   };
 
 
@@ -128,10 +132,13 @@ export default function AdminTournamentsPage() {
             </Link>
           </Button>
           <Button 
+            asChild
             className="w-full sm:w-auto transform hover:scale-105 transition-transform rounded-lg"
-            onClick={() => toast({ title: "Coming Soon!", description: "Functionality to schedule daily tournaments is under development." })}
+            // onClick={() => toast({ title: "Coming Soon!", description: "Functionality to schedule daily tournaments is under development." })}
           >
-            <CalendarClock className="mr-2 h-5 w-5" /> Schedule Daily Tournaments
+            <Link href="/admin/tournaments/schedule-daily">
+              <CalendarClock className="mr-2 h-5 w-5" /> Schedule Daily Tournaments
+            </Link>
           </Button>
         </div>
       </div>
@@ -141,7 +148,7 @@ export default function AdminTournamentsPage() {
         <Input
           type="search"
           placeholder="Search tournaments by name or game..."
-          className="w-full pl-10 shadow-sm bg-background/70 backdrop-blur-sm"
+          className="w-full pl-10 shadow-sm bg-background/70 backdrop-blur-sm rounded-lg"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
         />
@@ -172,10 +179,11 @@ export default function AdminTournamentsPage() {
                   <TableCell className="font-medium">{tournament.name}</TableCell>
                   <TableCell>
                     <Badge variant="secondary">{getGameName(tournament.gameId)}</Badge>
+                    {tournament.isSpecial && <Badge variant="default" className="ml-2 bg-amber-500 hover:bg-amber-600">Special</Badge>}
                   </TableCell>
                   <TableCell>{formatDateDisplay(tournament.tournamentDate)}</TableCell>
                   <TableCell>{formatDateDisplay(tournament.registrationCloseDate, false)}</TableCell>
-                  <TableCell className="text-right">{formatCurrency(tournament.entryFee, tournament.entryFeeCurrency)}</TableCell>
+                  <TableCell className="text-right">{formatCurrency(tournament.entryFee, getTournamentCurrencyDisplay(tournament))}</TableCell>
                   <TableCell className="text-right">{tournament.spotsLeft}/{tournament.totalSpots}</TableCell>
                   <TableCell className="text-center">
                     <div className="flex justify-center gap-1">
@@ -197,7 +205,7 @@ export default function AdminTournamentsPage() {
                         </AlertDialogTrigger>
                         <AlertDialogContent className="bg-card/90 backdrop-blur-md">
                           <AlertDialogHeader>
-                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                            <AlertDialogTitle className="flex items-center"><AlertTriangle className="mr-2 text-destructive"/>Are you sure?</AlertDialogTitle>
                             <AlertDialogDescription>
                               This action cannot be undone. This will permanently delete the tournament
                               "{tournament.name}".

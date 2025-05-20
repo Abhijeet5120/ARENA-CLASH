@@ -4,13 +4,23 @@
 import { readDataFromFile, writeDataToFile } from '@/lib/localFileStore';
 
 export interface GameMode {
-  id: string; // e.g., 'cs-1v1', 'fm-solo'
-  name: string; // e.g., "Clash Squad 1v1", "Full Map Solo"
+  id: string;
+  name: string;
   description?: string;
-  iconImageUrl?: string; 
-  dataAiHint?: string; 
-  bannerImageUrl?: string; 
-  bannerDataAiHint?: string; 
+  iconImageUrl?: string;
+  bannerImageUrl?: string;
+}
+
+export interface DailyTournamentTemplate {
+  id: string; // Unique ID for the template
+  templateName: string; // e.g., "Morning Free Fire CS 1v1"
+  gameModeId: string; // From the game's available gameModes
+  entryFee: number;
+  prizePool: string;
+  imageUrl?: string; // Banner for this template
+  totalSpots: number;
+  tournamentTime: string; // HH:mm, e.g., "10:00"
+  registrationCloseOffsetHours: number; // How many hours before tournamentTime registration closes
 }
 
 export interface Game {
@@ -24,6 +34,7 @@ export interface Game {
   dataAiHint: string;
   frequentlyUsedBanners: string[];
   gameModes: GameMode[];
+  dailyTournamentTemplates?: DailyTournamentTemplate[];
 }
 
 export type CreateGameData = Pick<Game, 'id' | 'name' | 'description'> & {
@@ -35,7 +46,9 @@ export type CreateGameData = Pick<Game, 'id' | 'name' | 'description'> & {
 };
 
 const GAMES_FILE = 'games.json';
-const initialGamesData: Omit<Game, 'frequentlyUsedBanners' | 'iconImageUrl' | 'gameModes'>[] = [
+let gamesStore: Game[] = []; // In-memory cache
+
+const initialGamesData: Omit<Game, 'frequentlyUsedBanners' | 'iconImageUrl' | 'gameModes' | 'dailyTournamentTemplates'>[] = [
   {
     id: 'minecraft',
     name: 'Minecraft',
@@ -57,32 +70,32 @@ const initialGamesData: Omit<Game, 'frequentlyUsedBanners' | 'iconImageUrl' | 'g
 ];
 
 const defaultFreeFireGameModes: GameMode[] = [
-  { id: 'cs-1v1', name: 'Clash Squad 1v1', description: 'Intense 1v1 battles in a small zone.', iconImageUrl: 'https://placehold.co/40x40.png?text=1v1', dataAiHint: '1v1 combat', bannerImageUrl: 'https://placehold.co/300x160.png?text=CS+1v1', bannerDataAiHint: 'clash squad' },
-  { id: 'cs-2v2', name: 'Clash Squad 2v2', description: 'Team up for 2v2 tactical combat.', iconImageUrl: 'https://placehold.co/40x40.png?text=2v2', dataAiHint: '2v2 team fight', bannerImageUrl: 'https://placehold.co/300x160.png?text=CS+2v2', bannerDataAiHint: 'team combat'},
-  { id: 'cs-4v4', name: 'Clash Squad 4v4', description: 'Classic 4v4 squad-based rounds.', iconImageUrl: 'https://placehold.co/40x40.png?text=4v4', dataAiHint: 'squad battle', bannerImageUrl: 'https://placehold.co/300x160.png?text=CS+4v4', bannerDataAiHint: 'squads fighting'},
-  { id: 'fm-solo', name: 'Full Map Solo', description: 'Survive alone on the vast island.', iconImageUrl: 'https://placehold.co/40x40.png?text=Solo', dataAiHint: 'solo survival', bannerImageUrl: 'https://placehold.co/300x160.png?text=Solo+Map', bannerDataAiHint: 'survival map'},
-  { id: 'fm-duo', name: 'Full Map Duo', description: 'Partner up and fight for victory.', iconImageUrl: 'https://placehold.co/40x40.png?text=Duo', dataAiHint: 'duo teamwork', bannerImageUrl: 'https://placehold.co/300x160.png?text=Duo+Map', bannerDataAiHint: 'team survival'},
-  { id: 'fm-squad', name: 'Full Map Squad', description: 'Coordinate with your squad to win.', iconImageUrl: 'https://placehold.co/40x40.png?text=Sqd', dataAiHint: 'squad strategy', bannerImageUrl: 'https://placehold.co/300x160.png?text=Squad+Map', bannerDataAiHint: 'squad map'},
-  { id: 'lw-1v1', name: 'Lone Wolf 1v1', description: 'Fast-paced 1v1 duels with preset loadouts.', iconImageUrl: 'https://placehold.co/40x40.png?text=LW1', dataAiHint: 'duel mode', bannerImageUrl: 'https://placehold.co/300x160.png?text=LW+1v1', bannerDataAiHint: 'lone wolf'},
-  { id: 'lw-2v2', name: 'Lone Wolf 2v2', description: '2v2 action with preset weapon choices.', iconImageUrl: 'https://placehold.co/40x40.png?text=LW2', dataAiHint: 'duo challenge', bannerImageUrl: 'https://placehold.co/300x160.png?text=LW+2v2', bannerDataAiHint: 'duo combat'},
+  { id: 'cs-1v1', name: 'Clash Squad 1v1', description: 'Intense 1v1 battles in a small zone.', iconImageUrl: 'https://placehold.co/40x40.png?text=1v1', bannerImageUrl: 'https://placehold.co/300x160.png?text=CS+1v1' },
+  { id: 'cs-2v2', name: 'Clash Squad 2v2', description: 'Team up for 2v2 tactical combat.', iconImageUrl: 'https://placehold.co/40x40.png?text=2v2', bannerImageUrl: 'https://placehold.co/300x160.png?text=CS+2v2'},
+  { id: 'cs-4v4', name: 'Clash Squad 4v4', description: 'Classic 4v4 squad-based rounds.', iconImageUrl: 'https://placehold.co/40x40.png?text=4v4', bannerImageUrl: 'https://placehold.co/300x160.png?text=CS+4v4'},
+  { id: 'fm-solo', name: 'Full Map Solo', description: 'Survive alone on the vast island.', iconImageUrl: 'https://placehold.co/40x40.png?text=Solo', bannerImageUrl: 'https://placehold.co/300x160.png?text=Solo+Map'},
+  { id: 'fm-duo', name: 'Full Map Duo', description: 'Partner up and fight for victory.', iconImageUrl: 'https://placehold.co/40x40.png?text=Duo', bannerImageUrl: 'https://placehold.co/300x160.png?text=Duo+Map'},
+  { id: 'fm-squad', name: 'Full Map Squad', description: 'Coordinate with your squad to win.', iconImageUrl: 'https://placehold.co/40x40.png?text=Sqd', bannerImageUrl: 'https://placehold.co/300x160.png?text=Squad+Map'},
+  { id: 'lw-1v1', name: 'Lone Wolf 1v1', description: 'Fast-paced 1v1 duels with preset loadouts.', iconImageUrl: 'https://placehold.co/40x40.png?text=LW1', bannerImageUrl: 'https://placehold.co/300x160.png?text=LW+1v1'},
+  { id: 'lw-2v2', name: 'Lone Wolf 2v2', description: '2v2 action with preset weapon choices.', iconImageUrl: 'https://placehold.co/40x40.png?text=LW2', bannerImageUrl: 'https://placehold.co/300x160.png?text=LW+2v2'},
 ];
 
 const defaultMinecraftGameModes: GameMode[] = [
-    { id: 'survival', name: 'Survival', description: 'Gather resources, build, and survive.', iconImageUrl: 'https://placehold.co/40x40.png?text=Surv', dataAiHint: 'survival gameplay', bannerImageUrl: 'https://placehold.co/300x160.png?text=MC+Survival', bannerDataAiHint: 'minecraft world' },
-    { id: 'creative', name: 'Creative', description: 'Unlimited resources to build anything.', iconImageUrl: 'https://placehold.co/40x40.png?text=Crea', dataAiHint: 'building mode', bannerImageUrl: 'https://placehold.co/300x160.png?text=MC+Creative', bannerDataAiHint: 'minecraft structures' },
-    { id: 'bed-wars', name: 'Bed Wars', description: 'Protect your bed and destroy others.', iconImageUrl: 'https://placehold.co/40x40.png?text=BedW', dataAiHint: 'pvp strategy', bannerImageUrl: 'https://placehold.co/300x160.png?text=MC+BedWars', bannerDataAiHint: 'minecraft battle' },
+    { id: 'survival', name: 'Survival', description: 'Gather resources, build, and survive.', iconImageUrl: 'https://placehold.co/40x40.png?text=Surv', bannerImageUrl: 'https://placehold.co/300x160.png?text=MC+Survival' },
+    { id: 'creative', name: 'Creative', description: 'Unlimited resources to build anything.', iconImageUrl: 'https://placehold.co/40x40.png?text=Crea', bannerImageUrl: 'https://placehold.co/300x160.png?text=MC+Creative' },
+    { id: 'bed-wars', name: 'Bed Wars', description: 'Protect your bed and destroy others.', iconImageUrl: 'https://placehold.co/40x40.png?text=BedW', bannerImageUrl: 'https://placehold.co/300x160.png?text=MC+BedWars' },
 ];
-
 
 const getStore = async (): Promise<Game[]> => {
   let fileData = await readDataFromFile<Game[]>(GAMES_FILE, []);
-  if (fileData.length === 0 && initialGamesData.length > 0) {
+  if (fileData.length === 0 && initialGamesData.length > 0 && process.env.NODE_ENV !== 'test') {
     console.log("Games.json is empty or not found, seeding with initial game data...");
     const seededGames = initialGamesData.map(g => ({
       ...g,
       iconImageUrl: g.iconImageUrl || `https://placehold.co/100x100.png?text=${g.name.charAt(0)}`,
       frequentlyUsedBanners: [],
       gameModes: g.id === 'free-fire' ? defaultFreeFireGameModes : (g.id === 'minecraft' ? defaultMinecraftGameModes : []),
+      dailyTournamentTemplates: [],
     }));
     const success = await writeDataToFile(GAMES_FILE, seededGames);
     if (success) {
@@ -94,10 +107,10 @@ const getStore = async (): Promise<Game[]> => {
         iconImageUrl: g.iconImageUrl || `https://placehold.co/100x100.png?text=${g.name.charAt(0)}`,
         frequentlyUsedBanners: [],
         gameModes: g.id === 'free-fire' ? defaultFreeFireGameModes : (g.id === 'minecraft' ? defaultMinecraftGameModes : []),
+        dailyTournamentTemplates: [],
       }))];
     }
   }
-  // Ensure all games (even existing ones) have gameModes, iconImageUrl, etc., with defaults if missing
   return fileData.map(g => {
     const defaultModes = g.id === 'free-fire' ? defaultFreeFireGameModes : (g.id === 'minecraft' ? defaultMinecraftGameModes : []);
     return {
@@ -110,13 +123,18 @@ const getStore = async (): Promise<Game[]> => {
             ...gm,
             iconImageUrl: gm.iconImageUrl || `https://placehold.co/40x40.png?text=${gm.name.charAt(0)}`,
             bannerImageUrl: gm.bannerImageUrl || `https://placehold.co/300x160.png`
-        }))
+        })),
+        dailyTournamentTemplates: g.dailyTournamentTemplates || [],
     };
   });
 };
 
 const saveStore = async (store: Game[]): Promise<boolean> => {
-  return await writeDataToFile(GAMES_FILE, store);
+  const success = await writeDataToFile(GAMES_FILE, store);
+  if (success) {
+    gamesStore = [...store]; // Update in-memory cache after successful write
+  }
+  return success;
 };
 
 export const getAllGames = async (): Promise<Game[]> => {
@@ -153,6 +171,7 @@ export const addGame = async (gameData: CreateGameData): Promise<Game | null> =>
     dataAiHint: gameData.dataAiHint || `${gameData.name.toLowerCase().replace(/\s+/g, '-')} game`,
     frequentlyUsedBanners: [],
     gameModes: gameData.id === 'free-fire' ? defaultFreeFireGameModes : (gameData.id === 'minecraft' ? defaultMinecraftGameModes : []),
+    dailyTournamentTemplates: [],
   };
 
   store.push(newGame);
@@ -170,25 +189,29 @@ export const updateGame = async (gameId: string, updates: Partial<Omit<Game, 'id
   if (gameIndex > -1) {
     const originalGame = { ...store[gameIndex] };
 
-    // Handle game modes update: if updates.gameModes is provided, use it entirely.
-    // Otherwise, keep the original game modes.
-    const updatedGameModes = updates.gameModes !== undefined 
+    const updatedGameModes = updates.gameModes !== undefined
       ? updates.gameModes.map(gm => ({
           ...gm,
-          // Apply placeholders only if the URL is genuinely undefined, not if it's an empty string (which means cleared)
           iconImageUrl: gm.iconImageUrl === '' ? undefined : (gm.iconImageUrl || `https://placehold.co/40x40.png?text=${gm.name.charAt(0)}`),
           bannerImageUrl: gm.bannerImageUrl === '' ? undefined : (gm.bannerImageUrl || `https://placehold.co/300x160.png`)
         }))
-      : originalGame.gameModes;
+      : (originalGame.gameModes || []);
+
+    const updatedDailyTemplates = updates.dailyTournamentTemplates !== undefined
+      ? updates.dailyTournamentTemplates.map(dt => ({
+          ...dt,
+          imageUrl: dt.imageUrl === '' ? undefined : (dt.imageUrl || `https://placehold.co/400x250.png?text=Daily+Event`),
+      }))
+      : (originalGame.dailyTournamentTemplates || []);
 
     const updatedGameData: Game = {
       ...originalGame,
       ...updates,
       frequentlyUsedBanners: updates.frequentlyUsedBanners !== undefined ? [...updates.frequentlyUsedBanners] : (originalGame.frequentlyUsedBanners || []),
       gameModes: updatedGameModes,
+      dailyTournamentTemplates: updatedDailyTemplates,
     };
-    
-    // Ensure fallback for game-level image URLs if they are explicitly set to empty or undefined in updates
+
     if (updates.hasOwnProperty('iconImageUrl')) {
         updatedGameData.iconImageUrl = updates.iconImageUrl || `https://placehold.co/100x100.png?text=${originalGame.name.charAt(0)}`;
     } else if (!updatedGameData.iconImageUrl) {
@@ -226,6 +249,7 @@ export const resetAllGames_ONLY_FOR_TESTING = async (): Promise<void> => {
     iconImageUrl: g.iconImageUrl || `https://placehold.co/100x100.png?text=${g.name.charAt(0)}`,
     frequentlyUsedBanners: [],
     gameModes: g.id === 'free-fire' ? defaultFreeFireGameModes : (g.id === 'minecraft' ? defaultMinecraftGameModes : []),
+    dailyTournamentTemplates: [],
   }));
   const success = await saveStore(seededData);
   if (success) {
@@ -235,4 +259,7 @@ export const resetAllGames_ONLY_FOR_TESTING = async (): Promise<void> => {
   }
 };
 
-    
+// Initialize the store when the module loads
+if (process.env.NODE_ENV !== 'test') {
+  getStore().catch(console.error);
+}

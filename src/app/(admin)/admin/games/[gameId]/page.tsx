@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { getGameById, updateGame, type Game, type GameMode } from '@/data/games';
+import { getGameById, updateGame, type Game, type GameMode, type DailyTournamentTemplate } from '@/data/games';
 import { getTournamentsByGameId, type Tournament } from '@/data/tournaments';
 import { useAdminContext } from '@/context/AdminContext';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -38,8 +38,16 @@ import {
   DialogTrigger as DialogModalTrigger,
   DialogClose
 } from "@/components/ui/dialog";
-import { ArrowLeft, Edit3, ImageIcon as ImageIconLucide, Info, Palette, Layers, CloudUpload, Trash2, Save, BarChartBig, Users, DollarSign, ShieldPlus, Puzzle, PlusCircle, ExternalLink, ImagePlus, Edit, AlertTriangle } from 'lucide-react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { ArrowLeft, Edit3, ImageIcon as ImageIconLucide, Info, Palette, Layers, CloudUpload, Trash2, Save, BarChartBig, Users, DollarSign, ShieldPlus, Puzzle, PlusCircle, ExternalLink, ImagePlus, Edit, AlertTriangle, CalendarPlus } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
+
 
 interface GameStats {
   tournamentCount: number;
@@ -65,7 +73,7 @@ export default function AdminGameDetailsPage() {
   const [previewBannerUrl, setPreviewBannerUrl] = useState<string | null>(null);
   const [previewIconUrl, setPreviewIconUrl] = useState<string | null>(null);
   const [frequentBanners, setFrequentBanners] = useState<string[]>([]);
-  
+
   // State for new game mode form
   const [isGameModeModalOpen, setIsGameModeModalOpen] = useState(false);
   const [newGameModeId, setNewGameModeId] = useState('');
@@ -84,6 +92,18 @@ export default function AdminGameDetailsPage() {
   const [editGameModeBannerUrl, setEditGameModeBannerUrl] = useState<string | null>(null);
   const [isUpdatingGameMode, setIsUpdatingGameMode] = useState(false);
 
+  // State for new daily tournament template form
+  const [isDailyTemplateModalOpen, setIsDailyTemplateModalOpen] = useState(false);
+  const [newTemplateName, setNewTemplateName] = useState('');
+  const [newTemplateGameModeId, setNewTemplateGameModeId] = useState('');
+  const [newTemplateEntryFee, setNewTemplateEntryFee] = useState<number>(0);
+  const [newTemplatePrizePool, setNewTemplatePrizePool] = useState('');
+  const [newTemplateImageUrl, setNewTemplateImageUrl] = useState<string | null>(null);
+  const [newTemplateTotalSpots, setNewTemplateTotalSpots] = useState<number>(32);
+  const [newTemplateTime, setNewTemplateTime] = useState('18:00'); // Default to 6 PM
+  const [newTemplateRegOffset, setNewTemplateRegOffset] = useState<number>(2); // Default to 2 hours before
+  const [isSavingDailyTemplate, setIsSavingDailyTemplate] = useState(false);
+
 
   const bannerInputRef = useRef<HTMLInputElement>(null);
   const iconInputRef = useRef<HTMLInputElement>(null);
@@ -92,6 +112,7 @@ export default function AdminGameDetailsPage() {
   const gameModeBannerInputRef = useRef<HTMLInputElement>(null);
   const editGameModeIconInputRef = useRef<HTMLInputElement>(null);
   const editGameModeBannerInputRef = useRef<HTMLInputElement>(null);
+  const dailyTemplateBannerInputRef = useRef<HTMLInputElement>(null);
 
 
   const loadGameData = useCallback(async () => {
@@ -121,7 +142,7 @@ export default function AdminGameDetailsPage() {
       gameTournamentsInRegion.forEach(t => {
         totalEntryFeesCollected += (t.totalSpots - t.spotsLeft) * t.entryFee;
       });
-      
+
       const regionCurrency = adminSelectedRegion === 'INDIA' ? 'INR' : 'USD';
       setGameStats({ tournamentCount, totalSpotsFilled, totalSpotsAvailable, totalEntryFeesCollected, regionCurrency });
 
@@ -140,12 +161,12 @@ export default function AdminGameDetailsPage() {
 
   const handleFileSelection = (
     event: React.ChangeEvent<HTMLInputElement>,
-    setDataUriCallback: (uri: string | null) => void, 
+    setDataUriCallback: (uri: string | null) => void,
     options?: { maxSizeMB?: number; toastTitle?: string }
   ) => {
     const file = event.target.files?.[0];
     if (!file) {
-        setDataUriCallback(null); 
+        setDataUriCallback(null);
         return;
     }
 
@@ -198,7 +219,7 @@ export default function AdminGameDetailsPage() {
     }
     setIsSaving(true);
     try {
-      const updates: Partial<Omit<Game, 'id' | 'gameModes'>> = { 
+      const updates: Partial<Omit<Game, 'id' | 'gameModes' | 'dailyTournamentTemplates'>> = {
         description: description,
         themeGradient: themeGradient,
         frequentlyUsedBanners: frequentBanners,
@@ -212,15 +233,15 @@ export default function AdminGameDetailsPage() {
 
       const updatedGame = await updateGame(game.id, updates);
       if (updatedGame) {
-        setGame(prevGame => prevGame ? ({...prevGame, ...updatedGame, gameModes: prevGame.gameModes}) : null );
-        setPreviewBannerUrl(null); 
+        setGame(prevGame => prevGame ? ({...prevGame, ...updatedGame, gameModes: prevGame.gameModes, dailyTournamentTemplates: prevGame.dailyTournamentTemplates}) : null );
+        setPreviewBannerUrl(null);
         setPreviewIconUrl(null);
         toast({
           title: "Success!",
           description: `${game.name} details updated successfully.`,
           variant: "default"
         });
-        await loadGameData(); 
+        await loadGameData();
       } else {
         throw new Error("Failed to update game details on the server.");
       }
@@ -275,7 +296,7 @@ export default function AdminGameDetailsPage() {
     setCurrentEditingGameMode(mode);
     setEditGameModeName(mode.name);
     setEditGameModeDescription(mode.description || '');
-    setEditGameModeIconUrl(mode.iconImageUrl || null); 
+    setEditGameModeIconUrl(mode.iconImageUrl || null);
     setEditGameModeBannerUrl(mode.bannerImageUrl || null);
     setIsEditGameModeModalOpen(true);
   };
@@ -294,8 +315,8 @@ export default function AdminGameDetailsPage() {
         iconImageUrl: editGameModeIconUrl || undefined,
         bannerImageUrl: editGameModeBannerUrl || undefined,
       };
-      
-      const updatedGameModes = game.gameModes.map(gm => 
+
+      const updatedGameModes = game.gameModes.map(gm =>
         gm.id === currentEditingGameMode.id ? updatedMode : gm
       );
 
@@ -317,7 +338,7 @@ export default function AdminGameDetailsPage() {
 
   const handleDeleteGameMode = async (modeIdToDelete: string) => {
     if (!game) return;
-    
+
     const tournamentsUsingMode = await getTournamentsByGameId(game.id, undefined, modeIdToDelete);
     if (tournamentsUsingMode.length > 0) {
         toast({
@@ -340,6 +361,49 @@ export default function AdminGameDetailsPage() {
       }
     } catch (error: any) {
       toast({ title: "Error Deleting Mode", description: error.message || "Could not delete game mode.", variant: "destructive" });
+    }
+  };
+
+  const handleAddDailyTournamentTemplate = async () => {
+    if (!game || !newTemplateName.trim() || !newTemplateGameModeId || newTemplateEntryFee < 0 || newTemplateTotalSpots <= 0 || !newTemplateTime) {
+        toast({ title: "Error", description: "All fields for daily template are required and must be valid.", variant: "destructive" });
+        return;
+    }
+    setIsSavingDailyTemplate(true);
+    try {
+        const newTemplate: DailyTournamentTemplate = {
+            id: `daily-tpl-${game.id}-${Date.now()}`,
+            templateName: newTemplateName.trim(),
+            gameModeId: newTemplateGameModeId,
+            entryFee: newTemplateEntryFee,
+            prizePool: newTemplatePrizePool.trim(),
+            imageUrl: newTemplateImageUrl || undefined,
+            totalSpots: newTemplateTotalSpots,
+            tournamentTime: newTemplateTime,
+            registrationCloseOffsetHours: newTemplateRegOffset,
+        };
+        const updatedTemplates = [...(game.dailyTournamentTemplates || []), newTemplate];
+        const updatedGame = await updateGame(game.id, { dailyTournamentTemplates: updatedTemplates });
+        if (updatedGame) {
+            setGame(updatedGame);
+            toast({ title: "Daily Template Added", description: `"${newTemplate.templateName}" added successfully.` });
+            setIsDailyTemplateModalOpen(false);
+            // Reset form fields
+            setNewTemplateName('');
+            setNewTemplateGameModeId('');
+            setNewTemplateEntryFee(0);
+            setNewTemplatePrizePool('');
+            setNewTemplateImageUrl(null);
+            setNewTemplateTotalSpots(32);
+            setNewTemplateTime('18:00');
+            setNewTemplateRegOffset(2);
+        } else {
+            throw new Error("Failed to update game with new daily template.");
+        }
+    } catch (error: any) {
+        toast({ title: "Error Adding Template", description: error.message || "Could not add daily tournament template.", variant: "destructive" });
+    } finally {
+        setIsSavingDailyTemplate(false);
     }
   };
 
@@ -369,7 +433,7 @@ export default function AdminGameDetailsPage() {
   const statItems = [
     { title: `Tournaments Hosted (in ${adminSelectedRegion})`, value: gameStats?.tournamentCount ?? 0, Icon: BarChartBig },
     { title: `Spots Filled (in ${adminSelectedRegion})`, value: `${gameStats?.totalSpotsFilled ?? 0} / ${gameStats?.totalSpotsAvailable ?? 0}`, Icon: Users },
-    { title: `Total Entry Fees (in ${adminSelectedRegion})`, value: formatCurrency(gameStats?.totalEntryFeesCollected ?? 0, gameStats?.regionCurrency || 'USD'), Icon: DollarSign },
+    { title: `Total Entry Fees (in ${adminSelectedRegion})`, value: formatCurrency(gameStats?.totalEntryFeesCollected ?? 0, gameStats?.regionCurrency || 'USD') , Icon: DollarSign },
   ];
 
   return (
@@ -395,7 +459,7 @@ export default function AdminGameDetailsPage() {
               alt={`${game.name} icon`}
               width={80}
               height={80}
-              className="h-20 w-20 rounded-lg object-cover mb-3 drop-shadow-lg border-2 border-primary-foreground/50"
+              className="h-20 w-20 rounded-lg object-contain mb-3 drop-shadow-lg border-2 border-primary-foreground/50"
               key={previewIconUrl ? `header-icon-preview-${previewIconUrl}` : `header-icon-${game.iconImageUrl || game.id}`}
             />
             <h1 className="text-4xl font-extrabold text-primary-foreground tracking-tight drop-shadow-xl">
@@ -470,7 +534,7 @@ export default function AdminGameDetailsPage() {
                     alt="Current game icon"
                     width={100}
                     height={100}
-                    className="rounded-md object-cover aspect-square border shadow-sm"
+                    className="rounded-md object-contain aspect-square border shadow-sm"
                     key={previewIconUrl ? `thumb-icon-preview-${previewIconUrl}` : `thumb-game-icon-${game.iconImageUrl || game.id}`}
                 />
                 <input
@@ -519,14 +583,12 @@ export default function AdminGameDetailsPage() {
             </CardTitle>
             <CardDescription>Define different modes of play for {game.name}.</CardDescription>
           </div>
-          {/* "Add New Game Mode" Dialog Trigger */}
           <Dialog open={isGameModeModalOpen} onOpenChange={setIsGameModeModalOpen}>
             <DialogModalTrigger asChild>
               <Button variant="outline" className="transform hover:scale-105 transition-transform">
                 <PlusCircle className="mr-2 h-4 w-4" /> Add Game Mode
               </Button>
             </DialogModalTrigger>
-            {/* "Add New Game Mode" Dialog Content */}
             <DialogModalContent className="sm:max-w-lg bg-card/90 backdrop-blur-xl">
               <DialogModalHeader>
                 <DialogModalTitle className="text-xl">Add New Game Mode for {game.name}</DialogModalTitle>
@@ -561,7 +623,7 @@ export default function AdminGameDetailsPage() {
                         <Button type="button" variant="outline" size="sm" onClick={() => gameModeIconInputRef.current?.click()}>
                             <CloudUpload className="mr-2 h-4 w-4"/> Upload
                         </Button>
-                        {newGameModeIconUrl && <Image src={newGameModeIconUrl} alt="Icon preview" width={32} height={32} className="rounded border" />}
+                        {newGameModeIconUrl && <Image src={newGameModeIconUrl} alt="Icon preview" width={32} height={32} className="rounded border object-contain" />}
                     </div>
                 </div>
                 <p className="col-span-4 text-xs text-muted-foreground text-center -mt-2">Recommended: 1:1 ratio (e.g. 100x100px). Max 1MB.</p>
@@ -603,13 +665,13 @@ export default function AdminGameDetailsPage() {
                 <Card key={mode.id} className="bg-muted/30 p-4 shadow-sm">
                   <div className="flex flex-col sm:flex-row items-start gap-4">
                     {mode.bannerImageUrl && (
-                        <Image src={mode.bannerImageUrl} alt={`${mode.name} banner`} width={100} height={56} className="rounded-md object-cover aspect-video flex-shrink-0 border" data-ai-hint={mode.bannerDataAiHint}/>
+                        <Image src={mode.bannerImageUrl} alt={`${mode.name} banner`} width={100} height={56} className="rounded-md object-cover aspect-video flex-shrink-0 border"/>
                     )}
                      {!mode.bannerImageUrl && mode.iconImageUrl && (
-                        <Image src={mode.iconImageUrl} alt={`${mode.name} icon`} width={56} height={56} className="rounded-md object-cover aspect-square flex-shrink-0 border" data-ai-hint={mode.dataAiHint}/>
+                        <Image src={mode.iconImageUrl} alt={`${mode.name} icon`} width={56} height={56} className="rounded-md object-contain aspect-square flex-shrink-0 border"/>
                      )}
                      {!mode.bannerImageUrl && !mode.iconImageUrl && <Puzzle className="h-14 w-14 text-muted-foreground mt-1 flex-shrink-0"/>}
-                    
+
                     <div className="flex-grow min-w-0">
                       <h4 className="font-semibold text-foreground truncate">{mode.name}</h4>
                       <p className="text-sm text-muted-foreground">ID: <code className="text-xs bg-gray-200 dark:bg-gray-700 p-1 rounded">{mode.id}</code></p>
@@ -631,7 +693,7 @@ export default function AdminGameDetailsPage() {
                             <AlertDialogHeader>
                               <AlertDialogTitle className="flex items-center"><AlertTriangle className="mr-2 text-destructive"/>Delete Game Mode?</AlertDialogTitle>
                               <AlertDialogDescription>
-                                Are you sure you want to delete the game mode "{mode.name}"? This action cannot be undone. 
+                                Are you sure you want to delete the game mode "{mode.name}"? This action cannot be undone.
                                 If tournaments are currently using this mode, you may need to reassign them.
                               </AlertDialogDescription>
                             </AlertDialogHeader>
@@ -684,7 +746,7 @@ export default function AdminGameDetailsPage() {
                     <Button type="button" variant="outline" size="sm" onClick={() => editGameModeIconInputRef.current?.click()}>
                         <CloudUpload className="mr-2 h-4 w-4"/> Change Icon
                     </Button>
-                    {editGameModeIconUrl && <Image src={editGameModeIconUrl} alt="Icon preview" width={32} height={32} className="rounded border" />}
+                    {editGameModeIconUrl && <Image src={editGameModeIconUrl} alt="Icon preview" width={32} height={32} className="rounded border object-contain" />}
                     {!editGameModeIconUrl && currentEditingGameMode?.iconImageUrl && (
                       <Button type="button" variant="ghost" size="sm" onClick={() => setEditGameModeIconUrl(null)} title="Remove current icon">
                         <Trash2 className="h-4 w-4 text-destructive"/>
@@ -729,6 +791,137 @@ export default function AdminGameDetailsPage() {
         </DialogModalContent>
       </Dialog>
 
+      <Separator />
+       {/* Manage Daily Tournament Templates Card */}
+      <Card className="shadow-xl bg-card/80 backdrop-blur-sm hover:bg-card/70 hover:backdrop-blur-md transition-all duration-300 rounded-xl">
+        <CardHeader className="flex flex-row justify-between items-center">
+          <div>
+            <CardTitle className="text-2xl flex items-center">
+              <CalendarPlus className="mr-3 h-7 w-7 text-primary" />
+              Manage Daily Tournament Templates
+            </CardTitle>
+            <CardDescription>Define reusable templates for daily recurring tournaments for {game.name}.</CardDescription>
+          </div>
+          <Dialog open={isDailyTemplateModalOpen} onOpenChange={setIsDailyTemplateModalOpen}>
+            <DialogModalTrigger asChild>
+              <Button variant="outline" className="transform hover:scale-105 transition-transform">
+                <PlusCircle className="mr-2 h-4 w-4" /> Add Template
+              </Button>
+            </DialogModalTrigger>
+            <DialogModalContent className="sm:max-w-lg bg-card/90 backdrop-blur-xl">
+              <DialogModalHeader>
+                <DialogModalTitle className="text-xl">Add New Daily Tournament Template</DialogModalTitle>
+                <DialogModalDescription>Configure a template for daily tournaments.</DialogModalDescription>
+              </DialogModalHeader>
+              <div className="grid gap-4 py-4 max-h-[70vh] overflow-y-auto pr-2">
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="newTemplateName" className="text-right">Template Name</Label>
+                  <Input id="newTemplateName" value={newTemplateName} onChange={(e) => setNewTemplateName(e.target.value)} className="col-span-3" placeholder="e.g., Morning CS 1v1" />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="newTemplateGameModeId" className="text-right">Game Mode</Label>
+                    <Select
+                        value={newTemplateGameModeId}
+                        onValueChange={setNewTemplateGameModeId}
+                    >
+                        <SelectTrigger className="col-span-3">
+                        <SelectValue placeholder="Select game mode" />
+                        </SelectTrigger>
+                        <SelectContent>
+                        {game.gameModes.map(mode => (
+                            <SelectItem key={mode.id} value={mode.id}>{mode.name}</SelectItem>
+                        ))}
+                        </SelectContent>
+                    </Select>
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="newTemplateEntryFee" className="text-right">Entry Fee</Label>
+                  <Input id="newTemplateEntryFee" type="number" value={newTemplateEntryFee} onChange={(e) => setNewTemplateEntryFee(parseFloat(e.target.value))} className="col-span-3" placeholder="e.g., 10" />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="newTemplatePrizePool" className="text-right">Prize Pool</Label>
+                  <Textarea id="newTemplatePrizePool" value={newTemplatePrizePool} onChange={(e) => setNewTemplatePrizePool(e.target.value)} className="col-span-3" placeholder="e.g., 100 Credits, In-game items" />
+                </div>
+                 <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="dailyTemplateBannerUpload" className="text-right">Banner (Opt.)</Label>
+                    <div className="col-span-3 flex items-center gap-2">
+                        <input
+                        type="file"
+                        id="dailyTemplateBannerUpload"
+                        ref={dailyTemplateBannerInputRef}
+                        onChange={(e) => handleFileSelection(e, setNewTemplateImageUrl, {maxSizeMB: 2, toastTitle: "Daily Template Banner Preview"}) }
+                        accept="image/*"
+                        style={{ display: 'none' }}
+                        />
+                        <Button type="button" variant="outline" size="sm" onClick={() => dailyTemplateBannerInputRef.current?.click()}>
+                            <ImagePlus className="mr-2 h-4 w-4"/> Upload
+                        </Button>
+                        {newTemplateImageUrl && <Image src={newTemplateImageUrl} alt="Banner preview" width={64} height={36} className="rounded border aspect-video object-cover" />}
+                    </div>
+                </div>
+                <p className="col-span-4 text-xs text-muted-foreground text-center -mt-2">Recommended: 16:9 ratio. Max 2MB.</p>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="newTemplateTotalSpots" className="text-right">Total Spots</Label>
+                  <Input id="newTemplateTotalSpots" type="number" value={newTemplateTotalSpots} onChange={(e) => setNewTemplateTotalSpots(parseInt(e.target.value, 10))} className="col-span-3" placeholder="e.g., 64" />
+                </div>
+                 <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="newTemplateTime" className="text-right">Tournament Time</Label>
+                  <Input id="newTemplateTime" type="time" value={newTemplateTime} onChange={(e) => setNewTemplateTime(e.target.value)} className="col-span-3" />
+                </div>
+                 <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="newTemplateRegOffset" className="text-right">Reg. Close (Hours Before)</Label>
+                  <Input id="newTemplateRegOffset" type="number" value={newTemplateRegOffset} onChange={(e) => setNewTemplateRegOffset(parseInt(e.target.value, 10))} className="col-span-3" placeholder="e.g., 2" />
+                </div>
+              </div>
+              <DialogModalFooter>
+                <DialogClose asChild>
+                    <Button type="button" variant="outline">Cancel</Button>
+                </DialogClose>
+                <Button type="button" onClick={handleAddDailyTournamentTemplate} disabled={isSavingDailyTemplate}>
+                  {isSavingDailyTemplate && <Spinner size="small" className="mr-2" />}
+                  Add Template
+                </Button>
+              </DialogModalFooter>
+            </DialogModalContent>
+          </Dialog>
+        </CardHeader>
+        <CardContent className="pt-6">
+          {(game.dailyTournamentTemplates || []).length > 0 ? (
+            <div className="space-y-4">
+              {(game.dailyTournamentTemplates || []).map(template => (
+                <Card key={template.id} className="bg-muted/30 p-4 shadow-sm">
+                  <div className="flex flex-col sm:flex-row items-start gap-4">
+                    {template.imageUrl && (
+                        <Image src={template.imageUrl} alt={`${template.templateName} banner`} width={100} height={56} className="rounded-md object-cover aspect-video flex-shrink-0 border"/>
+                    )}
+                    {!template.imageUrl && <CalendarPlus className="h-14 w-14 text-muted-foreground mt-1 flex-shrink-0"/>}
+                    <div className="flex-grow min-w-0">
+                      <h4 className="font-semibold text-foreground truncate">{template.templateName}</h4>
+                      <p className="text-sm text-muted-foreground">Mode: {game.gameModes.find(gm => gm.id === template.gameModeId)?.name || 'N/A'}</p>
+                      <p className="text-xs text-muted-foreground/80 mt-1 truncate">
+                        Time: {template.tournamentTime} | Spots: {template.totalSpots} | Fee: {template.entryFee} | Reg. Close: {template.registrationCloseOffsetHours}h before
+                      </p>
+                    </div>
+                    <div className="flex-shrink-0 space-x-2 self-center sm:self-start">
+                        {/* TODO: Edit/Delete Template Buttons Here */}
+                        <Button variant="outline" size="icon" className="h-8 w-8 transform hover:scale-110" disabled>
+                            <Edit className="h-4 w-4" />
+                            <span className="sr-only">Edit Template</span>
+                        </Button>
+                        <Button variant="destructive" size="icon" className="h-8 w-8 transform hover:scale-110" disabled>
+                            <Trash2 className="h-4 w-4" />
+                            <span className="sr-only">Delete Template</span>
+                        </Button>
+                    </div>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <p className="text-muted-foreground text-center py-4">No daily tournament templates defined for {game.name} yet.</p>
+          )}
+        </CardContent>
+      </Card>
 
       <Separator />
 
@@ -771,8 +964,8 @@ export default function AdminGameDetailsPage() {
                     <Image
                       src={bannerUri}
                       alt={`Frequent Banner ${index + 1}`}
-                      layout="fill"
-                      objectFit="cover"
+                      fill
+                      style={{objectFit:"cover"}}
                       className="rounded-md border shadow-sm"
                     />
                     <AlertDialog>

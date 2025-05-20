@@ -10,9 +10,9 @@ import {
   deleteTournament,
   type Tournament,
 } from '@/data/tournaments';
-import { getAllGames, type Game } from '@/data/games'; // Keep Game type
+import { getAllGames, type Game } from '@/data/games';
 import { useToast } from '@/hooks/use-toast';
-import { useAdminContext } from '@/context/AdminContext'; // Import AdminContext
+import { useAdminContext } from '@/context/AdminContext';
 import { Input } from '@/components/ui/input';
 import {
   Table,
@@ -36,7 +36,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Spinner } from '@/components/ui/spinner';
 import { format, parseISO, isValid } from 'date-fns';
-import { PlusCircle, Search, Users, Edit3, Trash2 } from 'lucide-react';
+import { PlusCircle, Search, Users, Edit3, Trash2, CalendarClock, Settings } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 
 
@@ -47,15 +47,14 @@ export default function AdminTournamentsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const { toast } = useToast();
   const router = useRouter();
-  const { adminSelectedRegion } = useAdminContext(); // Use admin selected region
+  const { adminSelectedRegion } = useAdminContext();
 
   const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
-      // Fetch tournaments for the selected admin region
       const [fetchedTournaments, fetchedGames] = await Promise.all([
-        getAllTournaments(adminSelectedRegion), 
-        getAllGames() 
+        getAllTournaments(adminSelectedRegion),
+        getAllGames()
       ]);
       setTournaments(fetchedTournaments);
       setGames(fetchedGames);
@@ -67,18 +66,18 @@ export default function AdminTournamentsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [toast, adminSelectedRegion]); // Add adminSelectedRegion to dependencies
+  }, [toast, adminSelectedRegion]);
 
   useEffect(() => {
     loadData();
-  }, [loadData]); // loadData itself depends on adminSelectedRegion
+  }, [loadData]);
 
   const handleDelete = async (tournamentId: string) => {
     try {
       const success = await deleteTournament(tournamentId);
       if (success) {
         toast({ title: 'Success', description: 'Tournament deleted successfully.' });
-        await loadData(); 
+        await loadData();
       } else {
         throw new Error('Failed to delete tournament. It might have already been deleted or not found.');
       }
@@ -116,13 +115,25 @@ export default function AdminTournamentsPage() {
       <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-foreground">Manage Tournaments ({adminSelectedRegion})</h1>
-          <p className="text-muted-foreground">Create, edit, or delete game tournaments for the selected region.</p>
+          <p className="text-muted-foreground">Create custom tournaments or schedule daily recurring events for the selected region.</p>
         </div>
-        <Button asChild className="transform hover:scale-105 transition-transform">
-          <Link href="/admin/tournaments/new">
-            <PlusCircle className="mr-2 h-5 w-5" /> Create Tournament
-          </Link>
-        </Button>
+        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+           <Button 
+            asChild 
+            className="w-full sm:w-auto transform hover:scale-105 transition-transform rounded-lg"
+            variant="outline"
+           >
+            <Link href="/admin/tournaments/new">
+              <PlusCircle className="mr-2 h-5 w-5" /> Create Custom Tournament
+            </Link>
+          </Button>
+          <Button 
+            className="w-full sm:w-auto transform hover:scale-105 transition-transform rounded-lg"
+            onClick={() => toast({ title: "Coming Soon!", description: "Functionality to schedule daily tournaments is under development." })}
+          >
+            <CalendarClock className="mr-2 h-5 w-5" /> Schedule Daily Tournaments
+          </Button>
+        </div>
       </div>
 
       <div className="relative">
@@ -164,7 +175,7 @@ export default function AdminTournamentsPage() {
                   </TableCell>
                   <TableCell>{formatDateDisplay(tournament.tournamentDate)}</TableCell>
                   <TableCell>{formatDateDisplay(tournament.registrationCloseDate, false)}</TableCell>
-                  <TableCell className="text-right">{formatCurrency(tournament.entryFee, adminSelectedRegion === 'INDIA' ? 'INR' : tournament.entryFeeCurrency)}</TableCell>
+                  <TableCell className="text-right">{formatCurrency(tournament.entryFee, tournament.entryFeeCurrency)}</TableCell>
                   <TableCell className="text-right">{tournament.spotsLeft}/{tournament.totalSpots}</TableCell>
                   <TableCell className="text-center">
                     <div className="flex justify-center gap-1">

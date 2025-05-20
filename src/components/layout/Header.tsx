@@ -56,11 +56,11 @@ export function Header() {
 
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 w-full pt-1 sm:pt-2">
+    <header className="fixed top-0 left-0 right-0 z-50 w-full pt-2 sm:pt-2.5">
       <div
         className="
-          container mx-auto flex h-11 sm:h-12 max-w-screen-md sm:max-w-screen-lg md:max-w-screen-xl items-center justify-between
-          px-2 sm:px-4
+          container mx-auto flex h-12 sm:h-14 max-w-screen-md sm:max-w-screen-lg md:max-w-screen-xl items-center justify-between
+          px-3 sm:px-4
           rounded-full
           border border-border/40
           bg-background/80
@@ -73,27 +73,27 @@ export function Header() {
       >
         <Link 
           href="/" 
-          className="flex items-center space-x-1 sm:space-x-1.5 text-primary hover:text-primary/80 transition-all duration-150 ease-in-out active:scale-95 transform"
+          className="flex items-center space-x-1.5 sm:space-x-2 text-primary hover:text-primary/80 transition-all duration-150 ease-in-out active:scale-95 transform"
         >
-          <Shield className="h-4 w-4 sm:h-5 sm:h-5" />
-          <span className="font-bold text-sm sm:text-base">Arena Clash</span>
+          <Shield className="h-5 w-5 sm:h-6 sm:h-6" />
+          <span className="font-bold text-base sm:text-lg">Arena Clash</span>
         </Link>
 
-        <nav className="flex items-center space-x-0.5 sm:space-x-1">
+        <nav className="flex items-center space-x-1 sm:space-x-1.5">
           {loading ? (
-             <div className="h-7 w-20 sm:w-28 bg-muted/50 rounded-md animate-pulse"></div>
+             <div className="h-8 w-24 sm:w-32 bg-muted/50 rounded-md animate-pulse"></div>
           ) : isLoggedIn && user ? (
-            <div className="flex items-center gap-1 sm:gap-1.5">
-              <Button variant="ghost" asChild className="h-auto py-0.5 px-1.5 sm:py-1 sm:px-2.5 rounded-full text-xs sm:text-sm text-foreground bg-muted/30 hover:bg-muted/50 shadow-sm transition-all duration-300 cursor-pointer backdrop-blur-sm transform hover:scale-105 hover:shadow-primary/20">
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <Button variant="ghost" asChild className="h-auto py-1 px-2 sm:py-1.5 sm:px-3 rounded-full text-sm text-foreground bg-muted/30 hover:bg-muted/50 shadow-sm transition-all duration-300 cursor-pointer backdrop-blur-sm transform hover:scale-105 hover:shadow-primary/20">
                 <Link href="/profile/wallet">
-                  <Wallet className="mr-1 h-3 w-3 sm:h-3.5 sm:w-3.5 text-primary"/>
+                  <Wallet className="mr-1.5 h-4 w-4"/>
                   <span>{formattedBalance}</span>
                 </Link>
               </Button>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="relative h-7 w-7 sm:h-8 sm:w-8 rounded-full p-0 transition-all duration-300 ease-in-out hover:scale-110 focus:scale-110 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background">
-                    <Avatar className="h-6 w-6 sm:h-7 sm:h-7">
+                  <Button variant="ghost" className="relative h-8 w-8 sm:h-9 sm:w-9 rounded-full p-0 transition-all duration-300 ease-in-out hover:scale-110 focus:scale-110 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background">
+                    <Avatar className="h-7 w-7 sm:h-8 sm:w-8">
                       <AvatarImage src={user.photoURL || undefined} alt={user.displayName || user.email || "User"} />
                       <AvatarFallback>{getInitials(user.email, user.displayName)}</AvatarFallback>
                     </Avatar>
@@ -140,11 +140,11 @@ export function Header() {
               </DropdownMenu>
             </div>
           ) : (
-             <div className="space-x-0.5 sm:space-x-1">
-              <Button variant="ghost" asChild className="h-auto py-1 px-2 sm:py-1.5 sm:px-2 rounded-lg text-xs sm:text-sm">
+             <div className="space-x-1 sm:space-x-1.5">
+              <Button variant="ghost" asChild className="h-auto py-1.5 px-2.5 sm:py-2 sm:px-3 rounded-lg text-sm">
                 <Link href="/login">Log In</Link>
               </Button>
-              <Button variant="default" asChild className="h-auto py-1 px-2 sm:py-1.5 sm:px-2 shadow-sm rounded-lg text-xs sm:text-sm">
+              <Button variant="default" asChild className="h-auto py-1.5 px-2.5 sm:py-2 sm:px-3 shadow-sm rounded-lg text-sm">
                 <Link href="/signup">Sign Up</Link>
               </Button>
             </div>

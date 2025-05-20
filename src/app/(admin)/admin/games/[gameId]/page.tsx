@@ -326,8 +326,8 @@ export default function AdminGameDetailsPage() {
         ...currentEditingGameMode,
         name: editGameModeName.trim(),
         description: editGameModeDescription.trim() || undefined,
-        iconImageUrl: editGameModeIconUrl || undefined,
-        bannerImageUrl: editGameModeBannerUrl || undefined,
+        iconImageUrl: editGameModeIconUrl === '' ? undefined : (editGameModeIconUrl || undefined), // Handle empty string as remove
+        bannerImageUrl: editGameModeBannerUrl === '' ? undefined : (editGameModeBannerUrl || undefined), // Handle empty string as remove
       };
 
       const updatedGameModes = game.gameModes.map(gm =>
@@ -447,7 +447,7 @@ export default function AdminGameDetailsPage() {
             gameModeId: editTemplateGameModeId,
             entryFee: editTemplateEntryFee,
             prizePool: editTemplatePrizePool.trim(),
-            imageUrl: editTemplateImageUrl || undefined,
+            imageUrl: editTemplateImageUrl === '' ? undefined : (editTemplateImageUrl || undefined),
             totalSpots: editTemplateTotalSpots,
             tournamentTime: editTemplateTime,
             registrationCloseOffsetHours: editTemplateRegOffset,
@@ -824,7 +824,7 @@ export default function AdminGameDetailsPage() {
                     type="file"
                     id="editGameModeIconUpload"
                     ref={editGameModeIconInputRef}
-                    onChange={(e) => handleFileSelection(e, setEditGameModeIconUrl, {maxSizeMB: 1, toastTitle: "Game Mode Icon Preview Updated"}) }
+                    onChange={(e) => handleFileSelection(e, (uri) => setEditGameModeIconUrl(uri || ''), {maxSizeMB: 1, toastTitle: "Game Mode Icon Preview Updated"}) }
                     accept="image/*"
                     style={{ display: 'none' }}
                     />
@@ -833,7 +833,7 @@ export default function AdminGameDetailsPage() {
                     </Button>
                     {editGameModeIconUrl && <Image src={editGameModeIconUrl} alt="Icon preview" width={32} height={32} className="rounded border object-contain" />}
                     {!editGameModeIconUrl && currentEditingGameMode?.iconImageUrl && (
-                      <Button type="button" variant="ghost" size="sm" onClick={() => setEditGameModeIconUrl(null)} title="Remove current icon">
+                      <Button type="button" variant="ghost" size="sm" onClick={() => setEditGameModeIconUrl('')} title="Remove current icon">
                         <Trash2 className="h-4 w-4 text-destructive"/>
                       </Button>
                     )}
@@ -847,7 +847,7 @@ export default function AdminGameDetailsPage() {
                     type="file"
                     id="editGameModeBannerUpload"
                     ref={editGameModeBannerInputRef}
-                    onChange={(e) => handleFileSelection(e, setEditGameModeBannerUrl, {maxSizeMB: 2, toastTitle: "Game Mode Banner Preview Updated"}) }
+                    onChange={(e) => handleFileSelection(e, (uri) => setEditGameModeBannerUrl(uri || ''), {maxSizeMB: 2, toastTitle: "Game Mode Banner Preview Updated"}) }
                     accept="image/*"
                     style={{ display: 'none' }}
                     />
@@ -856,7 +856,7 @@ export default function AdminGameDetailsPage() {
                     </Button>
                     {editGameModeBannerUrl && <Image src={editGameModeBannerUrl} alt="Banner preview" width={64} height={36} className="rounded border aspect-video object-cover" />}
                      {!editGameModeBannerUrl && currentEditingGameMode?.bannerImageUrl && (
-                      <Button type="button" variant="ghost" size="sm" onClick={() => setEditGameModeBannerUrl(null)} title="Remove current banner">
+                      <Button type="button" variant="ghost" size="sm" onClick={() => setEditGameModeBannerUrl('')} title="Remove current banner">
                         <Trash2 className="h-4 w-4 text-destructive"/>
                       </Button>
                     )}
@@ -934,14 +934,21 @@ export default function AdminGameDetailsPage() {
                         type="file"
                         id="dailyTemplateBannerUpload"
                         ref={dailyTemplateBannerInputRef}
-                        onChange={(e) => handleFileSelection(e, setNewTemplateImageUrl, {maxSizeMB: 2, toastTitle: "Daily Template Banner Preview"}) }
+                        onChange={(e) => handleFileSelection(e, (uri) => setNewTemplateImageUrl(uri || null), {maxSizeMB: 2, toastTitle: "Daily Template Banner Preview"}) }
                         accept="image/*"
                         style={{ display: 'none' }}
                         />
                         <Button type="button" variant="outline" size="sm" onClick={() => dailyTemplateBannerInputRef.current?.click()}>
-                            <ImagePlus className="mr-2 h-4 w-4"/> Upload
+                            <ImagePlus className="mr-2 h-4 w-4"/> Change Banner
                         </Button>
-                        {newTemplateImageUrl && <Image src={newTemplateImageUrl} alt="Banner preview" width={64} height={36} className="rounded border aspect-video object-cover" />}
+                        {newTemplateImageUrl && (
+                            <Image src={newTemplateImageUrl} alt="Banner preview" width={64} height={36} className="rounded border aspect-video object-cover" />
+                        )}
+                         {newTemplateImageUrl && (
+                            <Button type="button" variant="ghost" size="sm" onClick={() => setNewTemplateImageUrl(null)} title="Remove banner">
+                                <Trash2 className="h-4 w-4 text-destructive"/>
+                            </Button>
+                        )}
                     </div>
                 </div>
                 <p className="col-span-4 text-xs text-muted-foreground text-center -mt-2">Recommended: 16:9 ratio. Max 2MB.</p>
@@ -1057,11 +1064,13 @@ export default function AdminGameDetailsPage() {
             <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="editDailyTemplateBannerUpload" className="text-right">Banner (Opt.)</Label>
                 <div className="col-span-3 flex items-center gap-2">
-                    <input type="file" id="editDailyTemplateBannerUpload" ref={editDailyTemplateBannerInputRef} onChange={(e) => handleFileSelection(e, setEditTemplateImageUrl, {maxSizeMB: 2, toastTitle: "Template Banner Preview Updated"})} accept="image/*" style={{ display: 'none' }}/>
+                    <input type="file" id="editDailyTemplateBannerUpload" ref={editDailyTemplateBannerInputRef} onChange={(e) => handleFileSelection(e, (uri) => setEditTemplateImageUrl(uri || null), {maxSizeMB: 2, toastTitle: "Template Banner Preview Updated"})} accept="image/*" style={{ display: 'none' }}/>
                     <Button type="button" variant="outline" size="sm" onClick={() => editDailyTemplateBannerInputRef.current?.click()}><ImagePlus className="mr-2 h-4 w-4"/> Change Banner</Button>
                     {editTemplateImageUrl && <Image src={editTemplateImageUrl} alt="Banner preview" width={64} height={36} className="rounded border aspect-video object-cover" />}
-                    {!editTemplateImageUrl && currentEditingTemplate?.imageUrl && (
-                      <Button type="button" variant="ghost" size="sm" onClick={() => setEditTemplateImageUrl(null)} title="Remove current banner"><Trash2 className="h-4 w-4 text-destructive"/></Button>
+                    {currentEditingTemplate?.imageUrl && (
+                      <Button type="button" variant="ghost" size="sm" onClick={() => setEditTemplateImageUrl('')} title="Remove current banner">
+                        <Trash2 className="h-4 w-4 text-destructive"/>
+                      </Button>
                     )}
                 </div>
             </div>

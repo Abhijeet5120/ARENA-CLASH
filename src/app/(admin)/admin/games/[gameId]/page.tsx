@@ -100,9 +100,22 @@ export default function AdminGameDetailsPage() {
   const [newTemplatePrizePool, setNewTemplatePrizePool] = useState('');
   const [newTemplateImageUrl, setNewTemplateImageUrl] = useState<string | null>(null);
   const [newTemplateTotalSpots, setNewTemplateTotalSpots] = useState<number>(32);
-  const [newTemplateTime, setNewTemplateTime] = useState('18:00'); // Default to 6 PM
-  const [newTemplateRegOffset, setNewTemplateRegOffset] = useState<number>(2); // Default to 2 hours before
+  const [newTemplateTime, setNewTemplateTime] = useState('18:00'); 
+  const [newTemplateRegOffset, setNewTemplateRegOffset] = useState<number>(2); 
   const [isSavingDailyTemplate, setIsSavingDailyTemplate] = useState(false);
+
+  // State for editing daily tournament template form
+  const [isEditDailyTemplateModalOpen, setIsEditDailyTemplateModalOpen] = useState(false);
+  const [currentEditingTemplate, setCurrentEditingTemplate] = useState<DailyTournamentTemplate | null>(null);
+  const [editTemplateName, setEditTemplateName] = useState('');
+  const [editTemplateGameModeId, setEditTemplateGameModeId] = useState('');
+  const [editTemplateEntryFee, setEditTemplateEntryFee] = useState<number>(0);
+  const [editTemplatePrizePool, setEditTemplatePrizePool] = useState('');
+  const [editTemplateImageUrl, setEditTemplateImageUrl] = useState<string | null>(null);
+  const [editTemplateTotalSpots, setEditTemplateTotalSpots] = useState<number>(32);
+  const [editTemplateTime, setEditTemplateTime] = useState('18:00');
+  const [editTemplateRegOffset, setEditTemplateRegOffset] = useState<number>(2);
+  const [isUpdatingDailyTemplate, setIsUpdatingDailyTemplate] = useState(false);
 
 
   const bannerInputRef = useRef<HTMLInputElement>(null);
@@ -113,6 +126,7 @@ export default function AdminGameDetailsPage() {
   const editGameModeIconInputRef = useRef<HTMLInputElement>(null);
   const editGameModeBannerInputRef = useRef<HTMLInputElement>(null);
   const dailyTemplateBannerInputRef = useRef<HTMLInputElement>(null);
+  const editDailyTemplateBannerInputRef = useRef<HTMLInputElement>(null);
 
 
   const loadGameData = useCallback(async () => {
@@ -404,6 +418,77 @@ export default function AdminGameDetailsPage() {
         toast({ title: "Error Adding Template", description: error.message || "Could not add daily tournament template.", variant: "destructive" });
     } finally {
         setIsSavingDailyTemplate(false);
+    }
+  };
+  
+  const handleOpenEditDailyTemplateModal = (template: DailyTournamentTemplate) => {
+    setCurrentEditingTemplate(template);
+    setEditTemplateName(template.templateName);
+    setEditTemplateGameModeId(template.gameModeId);
+    setEditTemplateEntryFee(template.entryFee);
+    setEditTemplatePrizePool(template.prizePool);
+    setEditTemplateImageUrl(template.imageUrl || null);
+    setEditTemplateTotalSpots(template.totalSpots);
+    setEditTemplateTime(template.tournamentTime);
+    setEditTemplateRegOffset(template.registrationCloseOffsetHours);
+    setIsEditDailyTemplateModalOpen(true);
+  };
+
+  const handleUpdateDailyTournamentTemplate = async () => {
+    if (!game || !currentEditingTemplate || !editTemplateName.trim() || !editTemplateGameModeId || editTemplateEntryFee < 0 || editTemplateTotalSpots <= 0 || !editTemplateTime) {
+        toast({ title: "Error", description: "All fields for daily template are required and must be valid.", variant: "destructive" });
+        return;
+    }
+    setIsUpdatingDailyTemplate(true);
+    try {
+        const updatedTemplate: DailyTournamentTemplate = {
+            ...currentEditingTemplate,
+            templateName: editTemplateName.trim(),
+            gameModeId: editTemplateGameModeId,
+            entryFee: editTemplateEntryFee,
+            prizePool: editTemplatePrizePool.trim(),
+            imageUrl: editTemplateImageUrl || undefined,
+            totalSpots: editTemplateTotalSpots,
+            tournamentTime: editTemplateTime,
+            registrationCloseOffsetHours: editTemplateRegOffset,
+        };
+
+        const updatedTemplates = (game.dailyTournamentTemplates || []).map(t => 
+            t.id === currentEditingTemplate.id ? updatedTemplate : t
+        );
+        const updatedGame = await updateGame(game.id, { dailyTournamentTemplates: updatedTemplates });
+
+        if (updatedGame) {
+            setGame(updatedGame);
+            toast({ title: "Daily Template Updated", description: `"${updatedTemplate.templateName}" updated successfully.` });
+            setIsEditDailyTemplateModalOpen(false);
+            setCurrentEditingTemplate(null);
+        } else {
+            throw new Error("Failed to update game with modified daily template.");
+        }
+    } catch (error: any) {
+        toast({ title: "Error Updating Template", description: error.message || "Could not update daily tournament template.", variant: "destructive" });
+    } finally {
+        setIsUpdatingDailyTemplate(false);
+    }
+  };
+
+  const handleDeleteDailyTournamentTemplate = async (templateIdToDelete: string) => {
+    if (!game) return;
+    setIsLoading(true); // Use general loading or a specific one if preferred
+    try {
+        const updatedTemplates = (game.dailyTournamentTemplates || []).filter(t => t.id !== templateIdToDelete);
+        const updatedGame = await updateGame(game.id, { dailyTournamentTemplates: updatedTemplates });
+        if (updatedGame) {
+            setGame(updatedGame);
+            toast({ title: "Daily Template Deleted", description: `Daily template removed successfully.` });
+        } else {
+            throw new Error("Failed to update game after deleting daily template.");
+        }
+    } catch (error: any) {
+        toast({ title: "Error Deleting Template", description: error.message || "Could not delete daily tournament template.", variant: "destructive" });
+    } finally {
+        setIsLoading(false);
     }
   };
 
@@ -903,15 +988,30 @@ export default function AdminGameDetailsPage() {
                       </p>
                     </div>
                     <div className="flex-shrink-0 space-x-2 self-center sm:self-start">
-                        {/* TODO: Edit/Delete Template Buttons Here */}
-                        <Button variant="outline" size="icon" className="h-8 w-8 transform hover:scale-110" disabled>
+                        <Button variant="outline" size="icon" className="h-8 w-8 transform hover:scale-110" onClick={() => handleOpenEditDailyTemplateModal(template)}>
                             <Edit className="h-4 w-4" />
                             <span className="sr-only">Edit Template</span>
                         </Button>
-                        <Button variant="destructive" size="icon" className="h-8 w-8 transform hover:scale-110" disabled>
-                            <Trash2 className="h-4 w-4" />
-                            <span className="sr-only">Delete Template</span>
-                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button variant="destructive" size="icon" className="h-8 w-8 transform hover:scale-110">
+                                <Trash2 className="h-4 w-4" />
+                                <span className="sr-only">Delete Template</span>
+                            </Button>
+                           </AlertDialogTrigger>
+                           <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle className="flex items-center"><AlertTriangle className="mr-2 text-destructive"/>Delete Daily Template?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Are you sure you want to delete the template "{template.templateName}"? This action cannot be undone.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction onClick={() => handleDeleteDailyTournamentTemplate(template.id)}>Delete</AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
                     </div>
                   </div>
                 </Card>
@@ -922,6 +1022,72 @@ export default function AdminGameDetailsPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Edit Daily Tournament Template Dialog */}
+      <Dialog open={isEditDailyTemplateModalOpen} onOpenChange={setIsEditDailyTemplateModalOpen}>
+        <DialogModalContent className="sm:max-w-lg bg-card/90 backdrop-blur-xl">
+          <DialogModalHeader>
+            <DialogModalTitle className="text-xl">Edit Daily Template: {currentEditingTemplate?.templateName}</DialogModalTitle>
+            <DialogModalDescription>Update the details for this daily tournament template.</DialogModalDescription>
+          </DialogModalHeader>
+          <div className="grid gap-4 py-4 max-h-[70vh] overflow-y-auto pr-2">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="editTemplateName" className="text-right">Template Name</Label>
+              <Input id="editTemplateName" value={editTemplateName} onChange={(e) => setEditTemplateName(e.target.value)} className="col-span-3" />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="editTemplateGameModeId" className="text-right">Game Mode</Label>
+                <Select value={editTemplateGameModeId} onValueChange={setEditTemplateGameModeId}>
+                    <SelectTrigger className="col-span-3">
+                        <SelectValue placeholder="Select game mode" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {game.gameModes.map(mode => (<SelectItem key={mode.id} value={mode.id}>{mode.name}</SelectItem>))}
+                    </SelectContent>
+                </Select>
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="editTemplateEntryFee" className="text-right">Entry Fee</Label>
+                <Input id="editTemplateEntryFee" type="number" value={editTemplateEntryFee} onChange={(e) => setEditTemplateEntryFee(parseFloat(e.target.value))} className="col-span-3" />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="editTemplatePrizePool" className="text-right">Prize Pool</Label>
+                <Textarea id="editTemplatePrizePool" value={editTemplatePrizePool} onChange={(e) => setEditTemplatePrizePool(e.target.value)} className="col-span-3" />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="editDailyTemplateBannerUpload" className="text-right">Banner (Opt.)</Label>
+                <div className="col-span-3 flex items-center gap-2">
+                    <input type="file" id="editDailyTemplateBannerUpload" ref={editDailyTemplateBannerInputRef} onChange={(e) => handleFileSelection(e, setEditTemplateImageUrl, {maxSizeMB: 2, toastTitle: "Template Banner Preview Updated"})} accept="image/*" style={{ display: 'none' }}/>
+                    <Button type="button" variant="outline" size="sm" onClick={() => editDailyTemplateBannerInputRef.current?.click()}><ImagePlus className="mr-2 h-4 w-4"/> Change Banner</Button>
+                    {editTemplateImageUrl && <Image src={editTemplateImageUrl} alt="Banner preview" width={64} height={36} className="rounded border aspect-video object-cover" />}
+                    {!editTemplateImageUrl && currentEditingTemplate?.imageUrl && (
+                      <Button type="button" variant="ghost" size="sm" onClick={() => setEditTemplateImageUrl(null)} title="Remove current banner"><Trash2 className="h-4 w-4 text-destructive"/></Button>
+                    )}
+                </div>
+            </div>
+             <p className="col-span-4 text-xs text-muted-foreground text-center -mt-2">Recommended: 16:9 ratio. Max 2MB.</p>
+            <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="editTemplateTotalSpots" className="text-right">Total Spots</Label>
+                <Input id="editTemplateTotalSpots" type="number" value={editTemplateTotalSpots} onChange={(e) => setEditTemplateTotalSpots(parseInt(e.target.value, 10))} className="col-span-3" />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="editTemplateTime" className="text-right">Tournament Time</Label>
+                <Input id="editTemplateTime" type="time" value={editTemplateTime} onChange={(e) => setEditTemplateTime(e.target.value)} className="col-span-3" />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="editTemplateRegOffset" className="text-right">Reg. Close (Hours Before)</Label>
+                <Input id="editTemplateRegOffset" type="number" value={editTemplateRegOffset} onChange={(e) => setEditTemplateRegOffset(parseInt(e.target.value, 10))} className="col-span-3" />
+            </div>
+          </div>
+          <DialogModalFooter>
+            <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
+            <Button type="button" onClick={handleUpdateDailyTournamentTemplate} disabled={isUpdatingDailyTemplate}>
+              {isUpdatingDailyTemplate && <Spinner size="small" className="mr-2" />} Save Changes
+            </Button>
+          </DialogModalFooter>
+        </DialogModalContent>
+      </Dialog>
+
 
       <Separator />
 

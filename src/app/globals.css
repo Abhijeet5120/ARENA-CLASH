@@ -107,6 +107,17 @@
   body {
     @apply bg-background text-foreground;
     /* font-family removed to allow next/font to take precedence */
+    -webkit-user-select: none; /* Safari */
+    -ms-user-select: none; /* IE 10 and IE 11 */
+    user-select: none; /* Standard syntax */
+    -webkit-tap-highlight-color: transparent; /* Remove tap highlight on mobile */
+  }
+
+  /* Allow text selection in input fields and textareas */
+  input, textarea {
+    -webkit-user-select: text;
+    -ms-user-select: text;
+    user-select: text;
   }
 }
 

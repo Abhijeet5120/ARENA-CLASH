@@ -21,12 +21,14 @@ import { cn } from '@/lib/utils';
 export default function GamePage() {
   const { gameId } = useParams<{ gameId: string }>();
   const { user, loading: authLoading, isLoggedIn } = useAuth();
+
   const [game, setGame] = useState<Game | null>(null);
   const [specialTournaments, setSpecialTournaments] = useState<Tournament[]>([]);
   const [tournamentCountsByMode, setTournamentCountsByMode] = useState<Record<string, number>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [displayRegion, setDisplayRegion] = useState<UserRegion | "All Regions">('USA');
+
 
   const loadData = useCallback(async () => {
     if (!gameId) {
@@ -39,7 +41,7 @@ export default function GamePage() {
     }
 
     if (authLoading) {
-      setIsLoading(true); 
+      setIsLoading(true);
       return;
     }
 
@@ -52,7 +54,7 @@ export default function GamePage() {
       currentEffectiveRegion = user.region;
       setDisplayRegion(user.region);
     } else {
-      currentEffectiveRegion = undefined; 
+      currentEffectiveRegion = undefined; // Fetch all regions for non-logged-in users
       setDisplayRegion("All Regions");
     }
 
@@ -64,10 +66,11 @@ export default function GamePage() {
         const fetchedSpecialTournaments = await getSpecialTournamentsByGameId(foundGame.id, currentEffectiveRegion);
         setSpecialTournaments(fetchedSpecialTournaments);
 
+        // Fetch non-special tournaments to count them per mode
         const allNonSpecialTournaments = await getTournamentsByGameId(foundGame.id, currentEffectiveRegion);
         const counts: Record<string, number> = {};
         allNonSpecialTournaments.forEach(tournament => {
-          if (tournament.gameModeId) {
+          if (tournament.gameModeId) { // Ensure gameModeId exists
             counts[tournament.gameModeId] = (counts[tournament.gameModeId] || 0) + 1;
           }
         });
@@ -132,8 +135,8 @@ export default function GamePage() {
               <Image
                 src={game.iconImageUrl}
                 alt={`${game.name} icon`}
-                width={112}
-                height={112}
+                width={112} // Base width for Next.js Image optimization
+                height={112} // Base height
                 className="h-20 w-20 sm:h-24 sm:w-24 md:h-28 md:w-28 object-contain"
                 data-ai-hint={game.id}
               />
@@ -169,7 +172,7 @@ export default function GamePage() {
           </h2>
         </div>
         {(game.gameModes && game.gameModes.length > 0) ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
             {game.gameModes.map((mode, index) => (
               <Link
                 key={mode.id}
@@ -184,13 +187,13 @@ export default function GamePage() {
                         src={mode.bannerImageUrl}
                         alt={`${mode.name} banner`}
                         fill
-                        sizes="(max-width: 640px) 100vw, (max-width: 768px) 50vw, 33vw"
+                        sizes="(max-width: 640px) 100vw, (max-width: 768px) 50vw, (max-width: 1024px) 33vw, 25vw"
                         className="object-cover transition-transform duration-300 group-hover:scale-105"
-                        data-ai-hint={mode.bannerDataAiHint}
+                        data-ai-hint={mode.bannerDataAiHint || mode.name}
                       />
                     ) : (
                       <div className="w-full h-full bg-muted flex items-center justify-center text-muted-foreground/50">
-                        <Puzzle className="h-8 w-8 sm:h-10 sm:h-10" /> {/* Slightly smaller placeholder */}
+                        <Puzzle className="h-8 w-8 sm:h-10 sm:h-10" />
                       </div>
                     )}
                     <div
@@ -201,13 +204,13 @@ export default function GamePage() {
                         {tournamentCountsByMode[mode.id]} {tournamentCountsByMode[mode.id] === 1 ? 'Event' : 'Events'}
                       </Badge>
                     )}
-                    {(tournamentCountsByMode[mode.id] === undefined || tournamentCountsByMode[mode.id] === 0) && (
+                    {(!tournamentCountsByMode[mode.id] || tournamentCountsByMode[mode.id] === 0) && (
                       <Badge variant="outline" className="absolute top-1.5 right-1.5 text-xs px-1.5 py-0.5 shadow-md backdrop-blur-sm bg-background/70">
                         No Events
                       </Badge>
                     )}
                   </CardHeader>
-                  <CardContent className="p-3 sm:p-4 flex-grow flex flex-col justify-between">
+                  <CardContent className="p-2.5 sm:p-3 md:p-4 flex-grow flex flex-col justify-between">
                     <div className="flex items-center mb-1.5 gap-2">
                        {mode.iconImageUrl ? (
                         <Image
@@ -215,17 +218,17 @@ export default function GamePage() {
                           alt={`${mode.name} icon`}
                           width={28} 
                           height={28}
-                          className="h-6 w-6 sm:h-7 sm:w-7 rounded-md object-contain flex-shrink-0"
+                          className="h-6 w-6 sm:h-7 sm:h-7 rounded-md object-contain flex-shrink-0"
                           data-ai-hint={mode.dataAiHint || mode.id}
                         />
                       ) : (
-                        <Puzzle className="h-6 w-6 sm:h-7 sm:w-7 text-primary/70 flex-shrink-0" />
+                        <Puzzle className="h-6 w-6 sm:h-7 sm:h-7 text-primary/70 flex-shrink-0" />
                       )}
                       <CardTitle className="text-base sm:text-md font-semibold text-foreground group-hover:text-primary transition-colors truncate">
                         {mode.name}
                       </CardTitle>
                     </div>
-                    <p className="text-xs sm:text-sm text-muted-foreground/80 group-hover:text-primary/80 transition-colors line-clamp-2 mb-2 h-8 sm:h-10">
+                    <p className="text-xs text-muted-foreground/80 group-hover:text-primary/80 transition-colors line-clamp-2 mb-2 h-8 sm:h-10">
                       {mode.description || `Explore ${mode.name} tournaments.`}
                     </p>
                     <div className="mt-auto flex justify-end">

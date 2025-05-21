@@ -24,24 +24,20 @@ export default function GamePage() {
 
   const [game, setGame] = useState<Game | null>(null);
   const [specialTournaments, setSpecialTournaments] = useState<Tournament[]>([]);
-  const [tournamentCountsByMode, setTournamentCountsByMode] = useState<Record<string, number>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [displayRegion, setDisplayRegion] = useState<UserRegion | "All Regions">('USA');
-
+  const [tournamentCountsByMode, setTournamentCountsByMode] = useState<Record<string, number>>({});
 
   const loadData = useCallback(async () => {
     if (!gameId) {
       setError("Game ID is missing from URL parameters.");
       setIsLoading(false);
-      setGame(null);
-      setSpecialTournaments([]);
-      setTournamentCountsByMode({});
       return;
     }
 
     if (authLoading) {
-      setIsLoading(true);
+      setIsLoading(true); // Show loading while auth state is resolving
       return;
     }
 
@@ -63,14 +59,15 @@ export default function GamePage() {
       setGame(foundGame);
 
       if (foundGame) {
-        const fetchedSpecialTournaments = await getSpecialTournamentsByGameId(foundGame.id, currentEffectiveRegion);
+        const [fetchedSpecialTournaments, allNonSpecialTournaments] = await Promise.all([
+          getSpecialTournamentsByGameId(foundGame.id, currentEffectiveRegion),
+          getTournamentsByGameId(foundGame.id, currentEffectiveRegion) // Fetch all non-special for counting
+        ]);
         setSpecialTournaments(fetchedSpecialTournaments);
 
-        // Fetch non-special tournaments to count them per mode
-        const allNonSpecialTournaments = await getTournamentsByGameId(foundGame.id, currentEffectiveRegion);
         const counts: Record<string, number> = {};
         allNonSpecialTournaments.forEach(tournament => {
-          if (tournament.gameModeId) { // Ensure gameModeId exists
+          if (tournament.gameModeId) {
             counts[tournament.gameModeId] = (counts[tournament.gameModeId] || 0) + 1;
           }
         });
@@ -79,15 +76,11 @@ export default function GamePage() {
       } else {
         setError(`Game with ID "${gameId}" not found.`);
         setGame(null);
-        setSpecialTournaments([]);
-        setTournamentCountsByMode({});
       }
     } catch (err: any) {
       console.error(`Error loading data for game ${gameId}:`, err);
       setError(err.message || "Failed to load game data. Please try again.");
       setGame(null);
-      setSpecialTournaments([]);
-      setTournamentCountsByMode({});
     } finally {
       setIsLoading(false);
     }
@@ -128,20 +121,20 @@ export default function GamePage() {
 
   return (
     <div className="space-y-6 sm:space-y-8">
-      <header className="text-center py-4 sm:py-6 animate-in fade-in duration-500">
+      <header className="py-4 sm:py-6 animate-in fade-in duration-500">
         <div className="flex flex-col md:flex-row items-center justify-center md:justify-start gap-4 md:gap-6 text-center md:text-left">
           <div className="flex-shrink-0">
             {game.iconImageUrl ? (
               <Image
                 src={game.iconImageUrl}
                 alt={`${game.name} icon`}
-                width={112} // Base width for Next.js Image optimization
-                height={112} // Base height
+                width={112} 
+                height={112}
                 className="h-20 w-20 sm:h-24 sm:w-24 md:h-28 md:w-28 object-contain"
                 data-ai-hint={game.id}
               />
             ) : (
-              <div className="h-20 w-20 sm:h-24 sm:w-24 md:h-28 md:w-28 rounded-lg flex items-center justify-center text-primary font-bold text-5xl sm:text-6xl">
+              <div className="h-20 w-20 sm:h-24 sm:w-24 md:h-28 md:w-28 rounded-lg bg-muted flex items-center justify-center text-primary font-bold text-5xl sm:text-6xl shadow-sm">
                 {game.name.charAt(0).toUpperCase()}
               </div>
             )}
@@ -172,70 +165,46 @@ export default function GamePage() {
           </h2>
         </div>
         {(game.gameModes && game.gameModes.length > 0) ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
             {game.gameModes.map((mode, index) => (
               <Link
                 key={mode.id}
                 href={`/${gameId}/gamemodes/${mode.id}`}
-                className="group relative block focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-xl"
+                className="group relative flex flex-col items-center justify-center p-3 sm:p-4 text-center bg-muted/30 backdrop-blur-sm border border-border/70 rounded-xl shadow-lg hover:shadow-primary/20 focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/50 hover:border-primary/50 hover:-translate-y-1 hover:bg-muted/60 focus:outline-none transition-all duration-300 ease-in-out transform"
                 style={{ animationDelay: `${index * 75 + 200}ms`, animationFillMode: 'backwards' }}
               >
-                <Card className="overflow-hidden shadow-lg hover:shadow-primary/20 transition-all duration-300 ease-in-out transform hover:-translate-y-1 flex flex-col h-full bg-card/80 backdrop-blur-sm group-hover:bg-card/70 group-hover:backdrop-blur-md rounded-xl border border-border/70 hover:border-primary/50 focus-within:border-primary/50">
-                  <CardHeader className="p-0 relative h-24 sm:h-28 md:h-32 flex-shrink-0"> {/* Reduced banner height */}
-                    {mode.bannerImageUrl ? (
-                      <Image
-                        src={mode.bannerImageUrl}
-                        alt={`${mode.name} banner`}
-                        fill
-                        sizes="(max-width: 640px) 100vw, (max-width: 768px) 50vw, (max-width: 1024px) 33vw, 25vw"
-                        className="object-cover transition-transform duration-300 group-hover:scale-105"
-                        data-ai-hint={mode.bannerDataAiHint || mode.name}
-                      />
-                    ) : (
-                      <div className="w-full h-full bg-muted flex items-center justify-center text-muted-foreground/50">
-                        <Puzzle className="h-8 w-8 sm:h-10 sm:h-10" />
-                      </div>
-                    )}
-                    <div
-                      className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-black/10 opacity-60 group-hover:opacity-40 transition-opacity"
-                    ></div>
-                    {(tournamentCountsByMode[mode.id] || 0) > 0 && (
-                      <Badge variant="secondary" className="absolute top-1.5 right-1.5 text-xs px-1.5 py-0.5 shadow-md backdrop-blur-sm bg-background/70">
+                <div className="relative mb-2 sm:mb-3">
+                  {mode.iconImageUrl ? (
+                    <Image
+                      src={mode.iconImageUrl}
+                      alt={`${mode.name} icon`}
+                      width={48} 
+                      height={48}
+                      className="h-10 w-10 sm:h-12 sm:h-12 rounded-md object-contain transition-transform duration-300 group-hover:scale-110"
+                      data-ai-hint={mode.dataAiHint || mode.id}
+                    />
+                  ) : (
+                    <Puzzle className="h-10 w-10 sm:h-12 sm:h-12 text-primary/70 transition-transform duration-300 group-hover:scale-110" />
+                  )}
+                  {(tournamentCountsByMode[mode.id] || 0) > 0 && (
+                      <Badge variant="secondary" className="absolute -top-1.5 -right-1.5 text-xs px-1.5 py-0.5 shadow-md backdrop-blur-sm bg-background/70">
                         {tournamentCountsByMode[mode.id]} {tournamentCountsByMode[mode.id] === 1 ? 'Event' : 'Events'}
                       </Badge>
                     )}
                     {(!tournamentCountsByMode[mode.id] || tournamentCountsByMode[mode.id] === 0) && (
-                      <Badge variant="outline" className="absolute top-1.5 right-1.5 text-xs px-1.5 py-0.5 shadow-md backdrop-blur-sm bg-background/70">
+                      <Badge variant="outline" className="absolute -top-1.5 -right-1.5 text-xs px-1.5 py-0.5 shadow-md backdrop-blur-sm bg-background/70">
                         No Events
                       </Badge>
                     )}
-                  </CardHeader>
-                  <CardContent className="p-2.5 sm:p-3 md:p-4 flex-grow flex flex-col justify-between">
-                    <div className="flex items-center mb-1.5 gap-2">
-                       {mode.iconImageUrl ? (
-                        <Image
-                          src={mode.iconImageUrl}
-                          alt={`${mode.name} icon`}
-                          width={28} 
-                          height={28}
-                          className="h-6 w-6 sm:h-7 sm:h-7 rounded-md object-contain flex-shrink-0"
-                          data-ai-hint={mode.dataAiHint || mode.id}
-                        />
-                      ) : (
-                        <Puzzle className="h-6 w-6 sm:h-7 sm:h-7 text-primary/70 flex-shrink-0" />
-                      )}
-                      <CardTitle className="text-base sm:text-md font-semibold text-foreground group-hover:text-primary transition-colors truncate">
-                        {mode.name}
-                      </CardTitle>
-                    </div>
-                    <p className="text-xs text-muted-foreground/80 group-hover:text-primary/80 transition-colors line-clamp-2 mb-2 h-8 sm:h-10">
-                      {mode.description || `Explore ${mode.name} tournaments.`}
-                    </p>
-                    <div className="mt-auto flex justify-end">
-                       <ChevronRight className="h-4 w-4 sm:h-5 sm:h-5 text-muted-foreground group-hover:text-primary transition-colors" />
-                    </div>
-                  </CardContent>
-                </Card>
+                </div>
+                <span className="text-sm sm:text-base font-semibold text-foreground group-hover:text-primary transition-colors truncate w-full">
+                  {mode.name}
+                </span>
+                {mode.description && (
+                  <p className="mt-1 text-xs text-muted-foreground/80 group-hover:text-primary/80 transition-colors truncate w-full max-w-[90%]">
+                    {mode.description}
+                  </p>
+                )}
               </Link>
             ))}
           </div>

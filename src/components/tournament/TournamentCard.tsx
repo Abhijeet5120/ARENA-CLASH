@@ -49,7 +49,7 @@ const TournamentCardComponent = ({ tournament: initialTournament, currentUserReg
     <Card className={cn(
         "overflow-hidden shadow-lg hover:shadow-primary/30 transition-all duration-300 ease-in-out transform hover:-translate-y-1.5 flex flex-col h-full bg-card/80 backdrop-blur-sm group hover:ring-2 focus-within:ring-2 focus-within:ring-primary rounded-xl",
         tournament.isSpecial
-          ? "border-2 border-amber-500/80 hover:ring-amber-400/70 focus-within:ring-amber-400 bg-gradient-to-br from-card via-amber-500/15 to-amber-500/20 shadow-lg shadow-amber-500/10" // Increased gradient opacity and added themed shadow
+          ? "border-2 border-amber-500/80 hover:ring-amber-400/70 focus-within:ring-amber-400 bg-gradient-to-br from-card via-amber-500/10 to-amber-500/15 shadow-lg shadow-amber-500/10" // Adjusted gradient
           : "hover:ring-primary/70"
       )}>
       <Link href={`/${tournament.gameId}/tournaments/${tournament.id}`} className="group block flex flex-col h-full focus:outline-none">
@@ -75,7 +75,7 @@ const TournamentCardComponent = ({ tournament: initialTournament, currentUserReg
         <CardContent className="p-3 sm:p-4 flex-grow">
           <CardTitle className={cn(
               "text-base sm:text-lg font-bold mb-1.5 sm:mb-2 text-foreground group-hover:text-primary transition-colors",
-              tournament.isSpecial && "text-amber-400 group-hover:text-amber-300 drop-shadow-[0_2px_4px_rgba(251,191,36,0.6)]"
+              tournament.isSpecial && "text-yellow-400 group-hover:text-yellow-300 drop-shadow-[0_1px_4px_rgba(253,224,71,0.7)]" // Brighter gold text and shadow
             )}>
             {tournament.name}
           </CardTitle>

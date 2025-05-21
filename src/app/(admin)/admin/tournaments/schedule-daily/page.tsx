@@ -13,7 +13,7 @@ import { Spinner } from '@/components/ui/spinner';
 import Link from 'next/link';
 import Image from 'next/image';
 import { ArrowLeft, CalendarClock, Gamepad2, Info, CheckCircle, ImageOff, BadgeDollarSign, Users, Clock, Tag } from 'lucide-react';
-import { format, setHours, setMinutes, subHours, startOfDay } from 'date-fns';
+import { format, setHours, setMinutes, startOfDay, subHours } from 'date-fns';
 import {
   Select,
   SelectContent,
@@ -35,15 +35,16 @@ export default function ScheduleDailyTournamentsPage() {
   const { adminSelectedRegion } = useAdminContext();
 
   const [allGamesData, setAllGamesData] = useState<Game[]>([]);
-  const [selectedGameIdForFilter, setSelectedGameIdForFilter] = useState<string>('all'); // 'all' or game.id
-  const [filteredEnrichedTemplates, setFilteredEnrichedTemplates] = useState<EnrichedDailyTournamentTemplate[]>([]);
+  const [selectedGameId, setSelectedGameId] = useState<string>('');
+  const [displayedTemplates, setDisplayedTemplates] = useState<EnrichedDailyTournamentTemplate[]>([]);
   
-  const [isLoadingData, setIsLoadingData] = useState(true);
+  const [isLoadingGames, setIsLoadingGames] = useState(true);
+  const [isLoadingTemplatesForSelectedGame, setIsLoadingTemplatesForSelectedGame] = useState(false);
   const [processingTemplateId, setProcessingTemplateId] = useState<string | null>(null);
   const [implementedTodaySet, setImplementedTodaySet] = useState<Set<string>>(new Set());
 
   const loadGames = useCallback(async () => {
-    setIsLoadingData(true);
+    setIsLoadingGames(true);
     try {
       const fetchedGames = await getAllGames();
       setAllGamesData(fetchedGames);
@@ -51,7 +52,7 @@ export default function ScheduleDailyTournamentsPage() {
       toast({ title: "Error Loading Games", description: "Could not load the list of games.", variant: "destructive" });
       setAllGamesData([]);
     } finally {
-      setIsLoadingData(false); // We will set overall loading to false after templates are processed
+      setIsLoadingGames(false);
     }
   }, [toast]);
 
@@ -60,41 +61,34 @@ export default function ScheduleDailyTournamentsPage() {
   }, [loadGames]);
 
   useEffect(() => {
-    // This effect processes templates whenever allGamesData or selectedGameIdForFilter changes
-    if (allGamesData.length === 0 && selectedGameIdForFilter !== 'all') {
-        // If no games data yet, but a filter is selected, wait for games data.
-        // Or if there are truly no games, template list will be empty.
-        setFilteredEnrichedTemplates([]);
-        setIsLoadingData(false); // Indicate loading complete if no games to process.
-        return;
+    // This effect processes templates whenever selectedGameId changes
+    if (!selectedGameId) {
+      setDisplayedTemplates([]);
+      return;
     }
-    setIsLoadingData(true);
-    const enrichedTemplates: EnrichedDailyTournamentTemplate[] = [];
-    const gamesToProcess = selectedGameIdForFilter === 'all' 
-      ? allGamesData 
-      : allGamesData.filter(game => game.id === selectedGameIdForFilter);
 
-    gamesToProcess.forEach(game => {
-      (game.dailyTournamentTemplates || []).forEach(template => {
-        enrichedTemplates.push({
-          ...template,
-          gameId: game.id,
-          gameName: game.name,
-          gameIconImageUrl: game.iconImageUrl,
-        });
+    setIsLoadingTemplatesForSelectedGame(true);
+    const selectedGame = allGamesData.find(game => game.id === selectedGameId);
+
+    if (selectedGame) {
+      const enrichedTemplates: EnrichedDailyTournamentTemplate[] = (selectedGame.dailyTournamentTemplates || []).map(template => ({
+        ...template,
+        gameId: selectedGame.id,
+        gameName: selectedGame.name,
+        gameIconImageUrl: selectedGame.iconImageUrl,
+      }));
+
+      enrichedTemplates.sort((a, b) => {
+        if (a.templateName.toLowerCase() < b.templateName.toLowerCase()) return -1;
+        if (a.templateName.toLowerCase() > b.templateName.toLowerCase()) return 1;
+        return 0;
       });
-    });
-
-    enrichedTemplates.sort((a, b) => {
-      if (a.gameName.toLowerCase() < b.gameName.toLowerCase()) return -1;
-      if (a.gameName.toLowerCase() > b.gameName.toLowerCase()) return 1;
-      if (a.templateName.toLowerCase() < b.templateName.toLowerCase()) return -1;
-      if (a.templateName.toLowerCase() > b.templateName.toLowerCase()) return 1;
-      return 0;
-    });
-    setFilteredEnrichedTemplates(enrichedTemplates);
-    setIsLoadingData(false);
-  }, [allGamesData, selectedGameIdForFilter]);
+      setDisplayedTemplates(enrichedTemplates);
+    } else {
+      setDisplayedTemplates([]);
+    }
+    setIsLoadingTemplatesForSelectedGame(false);
+  }, [allGamesData, selectedGameId]);
 
 
   const handleImplementTemplate = async (template: EnrichedDailyTournamentTemplate) => {
@@ -103,7 +97,7 @@ export default function ScheduleDailyTournamentsPage() {
     try {
       const [hours, minutes] = template.tournamentTime.split(':').map(Number);
       const today = new Date();
-      let tournamentDateTime = setMinutes(setHours(startOfDay(today), hours), minutes); // Ensure it's today, not tomorrow if time passed
+      let tournamentDateTime = setMinutes(setHours(startOfDay(today), hours), minutes); 
 
       if (tournamentDateTime < new Date()) {
         toast({
@@ -123,7 +117,7 @@ export default function ScheduleDailyTournamentsPage() {
         name: tournamentName,
         gameId: template.gameId,
         gameModeId: template.gameModeId,
-        isSpecial: false, // Daily templates are generally not special, could be a template prop if needed
+        isSpecial: false, 
         tournamentDate: tournamentDateTime.toISOString(),
         registrationCloseDate: registrationCloseDateTime.toISOString(),
         entryFee: template.entryFee,
@@ -168,44 +162,60 @@ export default function ScheduleDailyTournamentsPage() {
             Schedule Daily Tournaments (for {adminSelectedRegion} Region)
           </CardTitle>
           <CardDescription>
-            Select a game to filter templates, then implement predefined daily tournament templates for today. Tournaments will use the region's currency.
+            Select a game, then choose from its predefined daily templates to schedule for today. Tournaments will use the region's currency.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          <div className="max-w-sm space-y-1.5">
-            <Label htmlFor="game-filter-select">Filter Templates by Game</Label>
+          <div className="max-w-md space-y-1.5">
+            <Label htmlFor="game-select">Select Game</Label>
             <Select 
-              value={selectedGameIdForFilter} 
-              onValueChange={setSelectedGameIdForFilter}
-              disabled={isLoadingData && allGamesData.length === 0}
+              value={selectedGameId} 
+              onValueChange={(value) => {
+                setSelectedGameId(value);
+                setImplementedTodaySet(new Set()); // Reset implemented status when game changes
+                setProcessingTemplateId(null);
+              }}
+              disabled={isLoadingGames}
             >
-              <SelectTrigger id="game-filter-select" className="bg-background/50">
-                <SelectValue placeholder="Select a game to filter templates" />
+              <SelectTrigger id="game-select" className="bg-background/50">
+                <SelectValue placeholder="Choose a game..." />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Games</SelectItem>
-                {allGamesData.map(game => (
-                  <SelectItem key={game.id} value={game.id}>
-                    {game.name}
-                  </SelectItem>
-                ))}
+                {isLoadingGames && allGamesData.length === 0 ? (
+                  <SelectItem value="loading" disabled>Loading games...</SelectItem>
+                ) : allGamesData.length > 0 ? (
+                  allGamesData.map(game => (
+                    <SelectItem key={game.id} value={game.id}>
+                      {game.name}
+                    </SelectItem>
+                  ))
+                ) : (
+                  <SelectItem value="no-games" disabled>No games available</SelectItem>
+                )}
               </SelectContent>
             </Select>
           </div>
 
-          {isLoadingData ? (
-            <div className="flex items-center justify-center h-40"><Spinner size="large" /><p className="ml-3 text-muted-foreground">Loading templates...</p></div>
-          ) : filteredEnrichedTemplates.length === 0 ? (
+          {isLoadingGames ? (
+            <div className="flex items-center justify-center h-40"><Spinner size="large" /><p className="ml-3 text-muted-foreground">Loading games list...</p></div>
+          ) : !selectedGameId ? (
+            <div className="p-6 border border-dashed rounded-md text-center text-muted-foreground">
+              <Info className="mx-auto h-10 w-10 mb-3 opacity-50"/>
+              <p className="font-semibold">Please select a game to view its daily templates.</p>
+            </div>
+          ) : isLoadingTemplatesForSelectedGame ? (
+             <div className="flex items-center justify-center h-40"><Spinner size="large" /><p className="ml-3 text-muted-foreground">Loading templates for {allGamesData.find(g => g.id === selectedGameId)?.name || 'selected game'}...</p></div>
+          ) : displayedTemplates.length === 0 ? (
             <div className="p-6 border border-dashed rounded-md text-center text-muted-foreground">
               <Info className="mx-auto h-10 w-10 mb-3 opacity-50"/>
               <p className="font-semibold">
-                {selectedGameIdForFilter === 'all' ? 'No Daily Tournament Templates Found' : `No Daily Templates for ${allGamesData.find(g=>g.id === selectedGameIdForFilter)?.name || 'Selected Game'}`}
+                No Daily Templates for {allGamesData.find(g => g.id === selectedGameId)?.name || 'Selected Game'}
               </p>
-              <p className="text-sm">Please create templates in the "Manage Game" section.</p>
+              <p className="text-sm">Please create templates in the "Manage Game" section for this game.</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-              {filteredEnrichedTemplates.map(template => (
+              {displayedTemplates.map(template => (
                 <Card key={template.id} className="flex flex-col bg-muted/20 backdrop-blur-sm shadow-lg hover:shadow-primary/20 transition-all duration-300 ease-in-out transform hover:-translate-y-1 rounded-xl overflow-hidden">
                   <CardHeader className="p-0 relative">
                     {template.imageUrl ? (
@@ -215,6 +225,7 @@ export default function ScheduleDailyTournamentsPage() {
                         width={400}
                         height={180}
                         className="w-full h-32 object-cover"
+                        data-ai-hint={`${template.gameName} tournament`}
                       />
                     ) : (
                       <div className="w-full h-32 bg-muted/40 flex items-center justify-center">

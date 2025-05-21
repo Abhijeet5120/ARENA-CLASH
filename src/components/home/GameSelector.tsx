@@ -29,7 +29,12 @@ export function GameSelector({ initialGames }: GameSelectorProps) {
   const [isClient, setIsClient] = useState(false);
 
   useEffect(() => {
-    setIsClient(true);
+    setIsClient(true); // Set isClient to true immediately on component mount
+  }, []);
+
+  useEffect(() => {
+    if (!isClient) return; // Don't do anything if not on client yet
+
     if (!initialGames || initialGames.length === 0) {
       setIsLoadingClient(true);
       getAllGames()
@@ -47,7 +52,7 @@ export function GameSelector({ initialGames }: GameSelectorProps) {
       setGamesToDisplay(initialGames);
       setIsLoadingClient(false);
     }
-  }, [initialGames]);
+  }, [isClient, initialGames]); // Rerun if initialGames or isClient changes
 
   const handleGameSelect = (gameId: string) => {
     setSelectedGameId(gameId);
@@ -69,6 +74,7 @@ export function GameSelector({ initialGames }: GameSelectorProps) {
   };
   
   if (!isClient) {
+    // Render a static placeholder during SSR and initial client render
     return (
       <div className="w-full max-w-xs sm:max-w-sm animate-fade-in-up flex flex-col items-center" style={{ animationDelay: `150ms` }}>
         <div className="h-10 px-4 text-sm rounded-xl shadow-lg bg-background/80 backdrop-blur-sm w-full flex items-center justify-center text-muted-foreground">
@@ -149,8 +155,8 @@ export function GameSelector({ initialGames }: GameSelectorProps) {
                   <Image
                     src={game.iconImageUrl}
                     alt={`${game.name} icon`}
-                    width={20}
-                    height={20}
+                    width={32}
+                    height={32}
                     className="mr-3 h-5 w-5 rounded object-cover flex-shrink-0"
                   />
                 ) : (

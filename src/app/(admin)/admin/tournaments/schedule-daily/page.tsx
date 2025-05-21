@@ -12,11 +12,16 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Spinner } from '@/components/ui/spinner';
 import Link from 'next/link';
 import Image from 'next/image';
-import { ArrowLeft, CalendarClock, Gamepad2, ListChecks, AlertTriangle, CheckCircle, Info, Tag, Clock, Users, DollarSign, ImageOff, BadgeDollarSign } from 'lucide-react';
-import { format, setHours, setMinutes, subHours } from 'date-fns';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Separator } from '@/components/ui/separator';
-import { formatCurrency } from '@/lib/utils';
+import { ArrowLeft, CalendarClock, Gamepad2, Info, CheckCircle, ImageOff, BadgeDollarSign, Users, Clock, Tag } from 'lucide-react';
+import { format, setHours, setMinutes, subHours, startOfDay } from 'date-fns';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Label } from '@/components/ui/label';
 
 interface EnrichedDailyTournamentTemplate extends DailyTournamentTemplate {
   gameId: string;
@@ -29,46 +34,68 @@ export default function ScheduleDailyTournamentsPage() {
   const { toast } = useToast();
   const { adminSelectedRegion } = useAdminContext();
 
-  const [allEnrichedTemplates, setAllEnrichedTemplates] = useState<EnrichedDailyTournamentTemplate[]>([]);
-  const [isLoadingTemplates, setIsLoadingTemplates] = useState(true);
+  const [allGamesData, setAllGamesData] = useState<Game[]>([]);
+  const [selectedGameIdForFilter, setSelectedGameIdForFilter] = useState<string>('all'); // 'all' or game.id
+  const [filteredEnrichedTemplates, setFilteredEnrichedTemplates] = useState<EnrichedDailyTournamentTemplate[]>([]);
+  
+  const [isLoadingData, setIsLoadingData] = useState(true);
   const [processingTemplateId, setProcessingTemplateId] = useState<string | null>(null);
   const [implementedTodaySet, setImplementedTodaySet] = useState<Set<string>>(new Set());
 
-  const loadAllTemplates = useCallback(async () => {
-    setIsLoadingTemplates(true);
+  const loadGames = useCallback(async () => {
+    setIsLoadingData(true);
     try {
       const fetchedGames = await getAllGames();
-      const enrichedTemplates: EnrichedDailyTournamentTemplate[] = [];
-      fetchedGames.forEach(game => {
-        (game.dailyTournamentTemplates || []).forEach(template => {
-          enrichedTemplates.push({
-            ...template,
-            gameId: game.id,
-            gameName: game.name,
-            gameIconImageUrl: game.iconImageUrl,
-          });
-        });
-      });
-      // Sort templates, perhaps by game name then template name
-      enrichedTemplates.sort((a, b) => {
-        if (a.gameName.toLowerCase() < b.gameName.toLowerCase()) return -1;
-        if (a.gameName.toLowerCase() > b.gameName.toLowerCase()) return 1;
-        if (a.templateName.toLowerCase() < b.templateName.toLowerCase()) return -1;
-        if (a.templateName.toLowerCase() > b.templateName.toLowerCase()) return 1;
-        return 0;
-      });
-      setAllEnrichedTemplates(enrichedTemplates);
+      setAllGamesData(fetchedGames);
     } catch (error) {
-      toast({ title: "Error", description: "Could not load daily tournament templates.", variant: "destructive" });
-      setAllEnrichedTemplates([]);
+      toast({ title: "Error Loading Games", description: "Could not load the list of games.", variant: "destructive" });
+      setAllGamesData([]);
     } finally {
-      setIsLoadingTemplates(false);
+      setIsLoadingData(false); // We will set overall loading to false after templates are processed
     }
   }, [toast]);
 
   useEffect(() => {
-    loadAllTemplates();
-  }, [loadAllTemplates]);
+    loadGames();
+  }, [loadGames]);
+
+  useEffect(() => {
+    // This effect processes templates whenever allGamesData or selectedGameIdForFilter changes
+    if (allGamesData.length === 0 && selectedGameIdForFilter !== 'all') {
+        // If no games data yet, but a filter is selected, wait for games data.
+        // Or if there are truly no games, template list will be empty.
+        setFilteredEnrichedTemplates([]);
+        setIsLoadingData(false); // Indicate loading complete if no games to process.
+        return;
+    }
+    setIsLoadingData(true);
+    const enrichedTemplates: EnrichedDailyTournamentTemplate[] = [];
+    const gamesToProcess = selectedGameIdForFilter === 'all' 
+      ? allGamesData 
+      : allGamesData.filter(game => game.id === selectedGameIdForFilter);
+
+    gamesToProcess.forEach(game => {
+      (game.dailyTournamentTemplates || []).forEach(template => {
+        enrichedTemplates.push({
+          ...template,
+          gameId: game.id,
+          gameName: game.name,
+          gameIconImageUrl: game.iconImageUrl,
+        });
+      });
+    });
+
+    enrichedTemplates.sort((a, b) => {
+      if (a.gameName.toLowerCase() < b.gameName.toLowerCase()) return -1;
+      if (a.gameName.toLowerCase() > b.gameName.toLowerCase()) return 1;
+      if (a.templateName.toLowerCase() < b.templateName.toLowerCase()) return -1;
+      if (a.templateName.toLowerCase() > b.templateName.toLowerCase()) return 1;
+      return 0;
+    });
+    setFilteredEnrichedTemplates(enrichedTemplates);
+    setIsLoadingData(false);
+  }, [allGamesData, selectedGameIdForFilter]);
+
 
   const handleImplementTemplate = async (template: EnrichedDailyTournamentTemplate) => {
     setProcessingTemplateId(template.id);
@@ -76,7 +103,7 @@ export default function ScheduleDailyTournamentsPage() {
     try {
       const [hours, minutes] = template.tournamentTime.split(':').map(Number);
       const today = new Date();
-      let tournamentDateTime = setMinutes(setHours(new Date(today.getFullYear(), today.getMonth(), today.getDate()), hours), minutes);
+      let tournamentDateTime = setMinutes(setHours(startOfDay(today), hours), minutes); // Ensure it's today, not tomorrow if time passed
 
       if (tournamentDateTime < new Date()) {
         toast({
@@ -96,7 +123,7 @@ export default function ScheduleDailyTournamentsPage() {
         name: tournamentName,
         gameId: template.gameId,
         gameModeId: template.gameModeId,
-        isSpecial: false,
+        isSpecial: false, // Daily templates are generally not special, could be a template prop if needed
         tournamentDate: tournamentDateTime.toISOString(),
         registrationCloseDate: registrationCloseDateTime.toISOString(),
         entryFee: template.entryFee,
@@ -141,21 +168,44 @@ export default function ScheduleDailyTournamentsPage() {
             Schedule Daily Tournaments (for {adminSelectedRegion} Region)
           </CardTitle>
           <CardDescription>
-            Implement predefined daily tournament templates for today. Tournaments will be created for the <span className="font-semibold">{adminSelectedRegion}</span> region using the region's currency for entry fees.
+            Select a game to filter templates, then implement predefined daily tournament templates for today. Tournaments will use the region's currency.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          {isLoadingTemplates ? (
+          <div className="max-w-sm space-y-1.5">
+            <Label htmlFor="game-filter-select">Filter Templates by Game</Label>
+            <Select 
+              value={selectedGameIdForFilter} 
+              onValueChange={setSelectedGameIdForFilter}
+              disabled={isLoadingData && allGamesData.length === 0}
+            >
+              <SelectTrigger id="game-filter-select" className="bg-background/50">
+                <SelectValue placeholder="Select a game to filter templates" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Games</SelectItem>
+                {allGamesData.map(game => (
+                  <SelectItem key={game.id} value={game.id}>
+                    {game.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {isLoadingData ? (
             <div className="flex items-center justify-center h-40"><Spinner size="large" /><p className="ml-3 text-muted-foreground">Loading templates...</p></div>
-          ) : allEnrichedTemplates.length === 0 ? (
+          ) : filteredEnrichedTemplates.length === 0 ? (
             <div className="p-6 border border-dashed rounded-md text-center text-muted-foreground">
               <Info className="mx-auto h-10 w-10 mb-3 opacity-50"/>
-              <p className="font-semibold">No Daily Tournament Templates Found</p>
-              <p className="text-sm">Please create some templates in the "Manage Game" section for any game first.</p>
+              <p className="font-semibold">
+                {selectedGameIdForFilter === 'all' ? 'No Daily Tournament Templates Found' : `No Daily Templates for ${allGamesData.find(g=>g.id === selectedGameIdForFilter)?.name || 'Selected Game'}`}
+              </p>
+              <p className="text-sm">Please create templates in the "Manage Game" section.</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-              {allEnrichedTemplates.map(template => (
+              {filteredEnrichedTemplates.map(template => (
                 <Card key={template.id} className="flex flex-col bg-muted/20 backdrop-blur-sm shadow-lg hover:shadow-primary/20 transition-all duration-300 ease-in-out transform hover:-translate-y-1 rounded-xl overflow-hidden">
                   <CardHeader className="p-0 relative">
                     {template.imageUrl ? (
@@ -186,7 +236,7 @@ export default function ScheduleDailyTournamentsPage() {
                       <div className="flex items-center"><Clock className="mr-1.5 h-3.5 w-3.5 text-primary/80"/>Time: {template.tournamentTime}</div>
                       <div className="flex items-center"><BadgeDollarSign className="mr-1.5 h-3.5 w-3.5 text-primary/80"/>Fee: {template.entryFee} (as {adminSelectedRegion === "INDIA" ? "INR" : "USD"})</div>
                       <div className="flex items-center"><Users className="mr-1.5 h-3.5 w-3.5 text-primary/80"/>Spots: {template.totalSpots}</div>
-                      <div className="flex items-center"><Tag className="mr-1.5 h-3.5 w-3.5 text-primary/80"/>Mode: {template.gameModeId}</div>
+                      <div className="flex items-center"><Tag className="mr-1.5 h-3.5 w-3.5 text-primary/80"/>Mode: {allGamesData.flatMap(g => g.gameModes).find(gm => gm.id === template.gameModeId)?.name || template.gameModeId}</div>
                     </div>
                   </CardContent>
                   <CardFooter className="p-4 border-t border-border/30">

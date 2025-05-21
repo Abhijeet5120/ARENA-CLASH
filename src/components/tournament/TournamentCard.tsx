@@ -49,7 +49,7 @@ const TournamentCardComponent = ({ tournament: initialTournament, currentUserReg
     <Card className={cn(
         "overflow-hidden shadow-lg hover:shadow-primary/30 transition-all duration-300 ease-in-out transform hover:-translate-y-1.5 flex flex-col h-full bg-card/80 backdrop-blur-sm group hover:ring-2 focus-within:ring-2 focus-within:ring-primary rounded-xl",
         tournament.isSpecial
-          ? "border-2 border-amber-500/80 hover:ring-amber-400/70 focus-within:ring-amber-400 bg-gradient-to-br from-card via-amber-500/10 to-amber-500/15 shadow-lg shadow-amber-500/10" // Adjusted gradient
+          ? "border-2 border-amber-500/80 hover:ring-amber-400/70 focus-within:ring-amber-400 bg-gradient-to-br from-card via-amber-500/15 to-amber-500/20 shadow-lg shadow-amber-500/20" // Increased shadow opacity
           : "hover:ring-primary/70"
       )}>
       <Link href={`/${tournament.gameId}/tournaments/${tournament.id}`} className="group block flex flex-col h-full focus:outline-none">
@@ -67,7 +67,7 @@ const TournamentCardComponent = ({ tournament: initialTournament, currentUserReg
             {tournament.spotsLeft} Spots Left
           </div>
            {tournament.isSpecial && (
-            <div className="absolute top-1.5 left-1.5 bg-gradient-to-r from-amber-400 to-orange-500 text-white px-2 py-0.5 rounded-full text-xs font-bold shadow-lg flex items-center animate-breathing-soft">
+            <div className="absolute top-1.5 left-1.5 bg-gradient-to-r from-amber-400 to-orange-500 text-white px-2.5 py-1 rounded-full text-xs font-semibold shadow-lg flex items-center animate-breathing-soft"> {/* Increased badge padding slightly */}
               <Sparkles className="mr-1 h-3 w-3 fill-white" /> SPECIAL
             </div>
           )}
@@ -75,7 +75,7 @@ const TournamentCardComponent = ({ tournament: initialTournament, currentUserReg
         <CardContent className="p-3 sm:p-4 flex-grow">
           <CardTitle className={cn(
               "text-base sm:text-lg font-bold mb-1.5 sm:mb-2 text-foreground group-hover:text-primary transition-colors",
-              tournament.isSpecial && "text-yellow-400 group-hover:text-yellow-300 drop-shadow-[0_1px_4px_rgba(253,224,71,0.7)]" // Brighter gold text and shadow
+              tournament.isSpecial && "text-yellow-400 group-hover:text-yellow-300 drop-shadow-[0_2px_5px_rgba(251,191,36,0.65)]" // Adjusted drop shadow
             )}>
             {tournament.name}
           </CardTitle>

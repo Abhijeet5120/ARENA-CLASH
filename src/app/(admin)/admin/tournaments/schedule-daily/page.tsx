@@ -3,181 +3,128 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { getAllGames, getGameById, type Game, type DailyTournamentTemplate } from '@/data/games';
-import { addTournament, type CreateTournamentData } from '@/data/tournaments'; // Import addTournament
+import { getAllGames, type Game, type DailyTournamentTemplate } from '@/data/games';
+import { addTournament, type CreateTournamentData } from '@/data/tournaments';
 import { useToast } from '@/hooks/use-toast';
 import { useAdminContext } from '@/context/AdminContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Label } from '@/components/ui/label';
-import { DatePicker } from '@/components/ui/date-picker';
 import { Spinner } from '@/components/ui/spinner';
 import Link from 'next/link';
-import { ArrowLeft, CalendarClock, CalendarRange, Gamepad2, ListChecks, AlertTriangle, CheckCircle, Info } from 'lucide-react';
-import { format, addDays, eachDayOfInterval, setHours, setMinutes, subHours } from 'date-fns';
+import Image from 'next/image';
+import { ArrowLeft, CalendarClock, Gamepad2, ListChecks, AlertTriangle, CheckCircle, Info, Tag, Clock, Users, DollarSign, ImageOff, BadgeDollarSign } from 'lucide-react';
+import { format, setHours, setMinutes, subHours } from 'date-fns';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Separator } from '@/components/ui/separator';
+import { formatCurrency } from '@/lib/utils';
+
+interface EnrichedDailyTournamentTemplate extends DailyTournamentTemplate {
+  gameId: string;
+  gameName: string;
+  gameIconImageUrl?: string;
+}
 
 export default function ScheduleDailyTournamentsPage() {
   const router = useRouter();
   const { toast } = useToast();
   const { adminSelectedRegion } = useAdminContext();
 
-  const [games, setGames] = useState<Game[]>([]);
-  const [selectedGameId, setSelectedGameId] = useState<string>('');
-  const [selectedGameDetails, setSelectedGameDetails] = useState<Game | null>(null);
-  const [startDate, setStartDate] = useState<Date | undefined>(new Date());
-  const [endDate, setEndDate] = useState<Date | undefined>(() => {
-    const date = new Date();
-    date.setDate(date.getDate() + 6); // Default to 7 days from today (inclusive)
-    return date;
-  });
-  const [selectedTemplateIds, setSelectedTemplateIds] = useState<Set<string>>(new Set());
+  const [allEnrichedTemplates, setAllEnrichedTemplates] = useState<EnrichedDailyTournamentTemplate[]>([]);
+  const [isLoadingTemplates, setIsLoadingTemplates] = useState(true);
+  const [processingTemplateId, setProcessingTemplateId] = useState<string | null>(null);
+  const [implementedTodaySet, setImplementedTodaySet] = useState<Set<string>>(new Set());
 
-  const [isLoadingGames, setIsLoadingGames] = useState(true);
-  const [isLoadingGameDetails, setIsLoadingGameDetails] = useState(false);
-  const [isScheduling, setIsScheduling] = useState(false);
-
-  useEffect(() => {
-    const fetchGames = async () => {
-      setIsLoadingGames(true);
-      try {
-        const fetchedGames = await getAllGames();
-        setGames(fetchedGames);
-      } catch (error) {
-        toast({ title: "Error", description: "Could not load games list.", variant: "destructive" });
-      } finally {
-        setIsLoadingGames(false);
-      }
-    };
-    fetchGames();
+  const loadAllTemplates = useCallback(async () => {
+    setIsLoadingTemplates(true);
+    try {
+      const fetchedGames = await getAllGames();
+      const enrichedTemplates: EnrichedDailyTournamentTemplate[] = [];
+      fetchedGames.forEach(game => {
+        (game.dailyTournamentTemplates || []).forEach(template => {
+          enrichedTemplates.push({
+            ...template,
+            gameId: game.id,
+            gameName: game.name,
+            gameIconImageUrl: game.iconImageUrl,
+          });
+        });
+      });
+      // Sort templates, perhaps by game name then template name
+      enrichedTemplates.sort((a, b) => {
+        if (a.gameName.toLowerCase() < b.gameName.toLowerCase()) return -1;
+        if (a.gameName.toLowerCase() > b.gameName.toLowerCase()) return 1;
+        if (a.templateName.toLowerCase() < b.templateName.toLowerCase()) return -1;
+        if (a.templateName.toLowerCase() > b.templateName.toLowerCase()) return 1;
+        return 0;
+      });
+      setAllEnrichedTemplates(enrichedTemplates);
+    } catch (error) {
+      toast({ title: "Error", description: "Could not load daily tournament templates.", variant: "destructive" });
+      setAllEnrichedTemplates([]);
+    } finally {
+      setIsLoadingTemplates(false);
+    }
   }, [toast]);
 
   useEffect(() => {
-    const fetchGameDetails = async () => {
-      if (!selectedGameId) {
-        setSelectedGameDetails(null);
-        setSelectedTemplateIds(new Set());
+    loadAllTemplates();
+  }, [loadAllTemplates]);
+
+  const handleImplementTemplate = async (template: EnrichedDailyTournamentTemplate) => {
+    setProcessingTemplateId(template.id);
+
+    try {
+      const [hours, minutes] = template.tournamentTime.split(':').map(Number);
+      const today = new Date();
+      let tournamentDateTime = setMinutes(setHours(new Date(today.getFullYear(), today.getMonth(), today.getDate()), hours), minutes);
+
+      if (tournamentDateTime < new Date()) {
+        toast({
+          title: "Time Passed",
+          description: `The time for "${template.templateName}" (${template.tournamentTime}) has already passed for today.`,
+          variant: "destructive",
+        });
+        setProcessingTemplateId(null);
         return;
       }
-      setIsLoadingGameDetails(true);
-      try {
-        const gameData = await getGameById(selectedGameId);
-        setSelectedGameDetails(gameData);
-        setSelectedTemplateIds(new Set()); 
-      } catch (error) {
-        toast({ title: "Error", description: "Could not load details for the selected game.", variant: "destructive" });
-        setSelectedGameDetails(null);
-      } finally {
-        setIsLoadingGameDetails(false);
-      }
-    };
-    fetchGameDetails();
-  }, [selectedGameId, toast]);
-  
-  const handleTemplateSelection = (templateId: string) => {
-    setSelectedTemplateIds(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(templateId)) {
-        newSet.delete(templateId);
-      } else {
-        newSet.add(templateId);
-      }
-      return newSet;
-    });
+
+      const registrationCloseDateTime = subHours(tournamentDateTime, template.registrationCloseOffsetHours);
+      const tournamentName = `${template.templateName} - Daily - ${format(today, 'MMM d')}`;
+      const entryFeeCurrencyForTournament = adminSelectedRegion === 'INDIA' ? 'INR' : 'USD';
+
+      const createData: CreateTournamentData = {
+        name: tournamentName,
+        gameId: template.gameId,
+        gameModeId: template.gameModeId,
+        isSpecial: false,
+        tournamentDate: tournamentDateTime.toISOString(),
+        registrationCloseDate: registrationCloseDateTime.toISOString(),
+        entryFee: template.entryFee,
+        entryFeeCurrency: entryFeeCurrencyForTournament,
+        region: adminSelectedRegion,
+        prizePool: template.prizePool,
+        totalSpots: template.totalSpots,
+        imageUrl: template.imageUrl || `https://placehold.co/400x250.png?text=${encodeURIComponent(tournamentName)}`,
+      };
+
+      await addTournament(createData);
+      toast({
+        title: "Tournament Scheduled!",
+        description: `"${tournamentName}" for ${template.gameName} has been scheduled for today.`,
+        variant: "default",
+      });
+      setImplementedTodaySet(prev => new Set(prev).add(template.id));
+
+    } catch (error: any) {
+      toast({
+        title: "Scheduling Failed",
+        description: error.message || `Could not schedule "${template.templateName}".`,
+        variant: "destructive",
+      });
+    } finally {
+      setProcessingTemplateId(null);
+    }
   };
-
-  const handleScheduleTournaments = async () => {
-    if (!selectedGameId || !selectedGameDetails || selectedTemplateIds.size === 0 || !startDate || !endDate) {
-      toast({ title: "Missing Information", description: "Please select a game, templates, start date, and end date.", variant: "destructive" });
-      return;
-    }
-    if (endDate < startDate) {
-        toast({ title: "Invalid Date Range", description: "End date cannot be before start date.", variant: "destructive" });
-        return;
-    }
-
-    setIsScheduling(true);
-    let successfulCreations = 0;
-    let failedCreations = 0;
-    const errorMessages: string[] = [];
-
-    const datesToSchedule = eachDayOfInterval({ start: startDate, end: endDate });
-
-    for (const currentDate of datesToSchedule) {
-      for (const templateId of Array.from(selectedTemplateIds)) {
-        const templateDetails = selectedGameDetails.dailyTournamentTemplates?.find(t => t.id === templateId);
-        if (!templateDetails) {
-          console.warn(`Template with ID ${templateId} not found for game ${selectedGameDetails.name}. Skipping.`);
-          failedCreations++;
-          errorMessages.push(`Template ${templateId} not found.`);
-          continue;
-        }
-
-        try {
-          const [hours, minutes] = templateDetails.tournamentTime.split(':').map(Number);
-          let tournamentDateTime = setMinutes(setHours(currentDate, hours), minutes);
-          
-          // Ensure tournamentDateTime is not in the past relative to now for the first day
-          if (currentDate.toDateString() === new Date().toDateString() && tournamentDateTime < new Date()) {
-              console.warn(`Skipping template "${templateDetails.templateName}" for ${format(currentDate, 'MMM d')} as its time (${templateDetails.tournamentTime}) is in the past.`);
-              errorMessages.push(`Skipped ${templateDetails.templateName} on ${format(currentDate, 'MMM d')} (time past).`);
-              failedCreations++;
-              continue;
-          }
-
-
-          const registrationCloseDateTime = subHours(tournamentDateTime, templateDetails.registrationCloseOffsetHours);
-
-          const tournamentName = `${templateDetails.templateName} - ${format(currentDate, 'MMM d')}`;
-
-          const createData: CreateTournamentData = {
-            name: tournamentName,
-            gameId: selectedGameDetails.id,
-            gameModeId: templateDetails.gameModeId,
-            isSpecial: false, // Daily tournaments are not special by default
-            tournamentDate: tournamentDateTime.toISOString(),
-            registrationCloseDate: registrationCloseDateTime.toISOString(),
-            entryFee: templateDetails.entryFee,
-            entryFeeCurrency: adminSelectedRegion === 'INDIA' ? 'INR' : 'USD',
-            region: adminSelectedRegion,
-            prizePool: templateDetails.prizePool,
-            totalSpots: templateDetails.totalSpots,
-            imageUrl: templateDetails.imageUrl || `https://placehold.co/400x250.png?text=${encodeURIComponent(tournamentName)}`, // Fallback if template has no image
-          };
-
-          await addTournament(createData);
-          successfulCreations++;
-        } catch (error: any) {
-          failedCreations++;
-          const errorMessage = `Failed to create "${templateDetails.templateName}" for ${format(currentDate, 'MMM d')}: ${error.message || 'Unknown error'}`;
-          console.error(errorMessage, error);
-          errorMessages.push(errorMessage.substring(0, 100)); // Keep error messages brief for toast
-        }
-      }
-    }
-
-    toast({
-      title: "Scheduling Complete",
-      description: `${successfulCreations} tournament(s) created. ${failedCreations} failed. ${failedCreations > 0 ? 'Check console for details or individual error messages: ' + errorMessages.slice(0,2).join('; ') + '...' : ''}`,
-      duration: failedCreations > 0 ? 10000 : 5000,
-      variant: failedCreations > 0 && successfulCreations === 0 ? "destructive" : (failedCreations > 0 ? "default" : "default") // Destructive if all failed
-    });
-
-    if (successfulCreations > 0) {
-      setSelectedTemplateIds(new Set()); // Clear selection on success
-    }
-    setIsScheduling(false);
-  };
-  
-  const today = new Date();
-  today.setHours(0,0,0,0);
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
@@ -194,105 +141,83 @@ export default function ScheduleDailyTournamentsPage() {
             Schedule Daily Tournaments (for {adminSelectedRegion} Region)
           </CardTitle>
           <CardDescription>
-            Select a game, choose templates, set a date range, and automatically schedule recurring daily tournaments.
+            Implement predefined daily tournament templates for today. Tournaments will be created for the <span className="font-semibold">{adminSelectedRegion}</span> region using the region's currency for entry fees.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          {/* Game Selection */}
-          <div className="space-y-2">
-            <Label htmlFor="game-select" className="flex items-center"><Gamepad2 className="mr-2 h-4 w-4 text-muted-foreground" />Select Game</Label>
-            {isLoadingGames ? (
-              <div className="flex items-center"><Spinner size="small" className="mr-2"/> Loading games...</div>
-            ) : (
-              <Select value={selectedGameId} onValueChange={setSelectedGameId}>
-                <SelectTrigger id="game-select">
-                  <SelectValue placeholder="Choose a game" />
-                </SelectTrigger>
-                <SelectContent>
-                  {games.map(game => (
-                    <SelectItem key={game.id} value={game.id}>{game.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-          </div>
-
-          {/* Date Range Selection */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="start-date" className="flex items-center"><CalendarRange className="mr-2 h-4 w-4 text-muted-foreground" />Start Date</Label>
-              <DatePicker
-                value={startDate}
-                onChange={setStartDate}
-                placeholder="Select start date"
-                disabledDates={{before: today}}
-              />
+          {isLoadingTemplates ? (
+            <div className="flex items-center justify-center h-40"><Spinner size="large" /><p className="ml-3 text-muted-foreground">Loading templates...</p></div>
+          ) : allEnrichedTemplates.length === 0 ? (
+            <div className="p-6 border border-dashed rounded-md text-center text-muted-foreground">
+              <Info className="mx-auto h-10 w-10 mb-3 opacity-50"/>
+              <p className="font-semibold">No Daily Tournament Templates Found</p>
+              <p className="text-sm">Please create some templates in the "Manage Game" section for any game first.</p>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="end-date" className="flex items-center"><CalendarRange className="mr-2 h-4 w-4 text-muted-foreground" />End Date</Label>
-              <DatePicker
-                value={endDate}
-                onChange={setEndDate}
-                placeholder="Select end date"
-                disabledDates={{before: startDate || today}}
-                isPickerButtonDisabled={!startDate}
-              />
-               {!startDate && <p className="text-xs text-muted-foreground mt-1">Select a start date first.</p>}
-            </div>
-          </div>
-          
-          {/* Daily Tournament Templates List */}
-          {selectedGameId && (
-            <div className="space-y-3">
-              <Label className="flex items-center"><ListChecks className="mr-2 h-4 w-4 text-muted-foreground" />Select Templates to Schedule (for {selectedGameDetails?.name || 'selected game'})</Label>
-              {isLoadingGameDetails ? (
-                <div className="flex items-center"><Spinner size="small" className="mr-2"/> Loading templates...</div>
-              ) : selectedGameDetails && selectedGameDetails.dailyTournamentTemplates && selectedGameDetails.dailyTournamentTemplates.length > 0 ? (
-                 <ScrollArea className="h-72 w-full rounded-md border bg-muted/20 p-4">
-                    <div className="space-y-3">
-                    {selectedGameDetails.dailyTournamentTemplates.map(template => (
-                        <Card 
-                            key={template.id} 
-                            onClick={() => handleTemplateSelection(template.id)}
-                            className={`p-3 cursor-pointer transition-all duration-200 ease-in-out hover:shadow-md 
-                                        ${selectedTemplateIds.has(template.id) ? 'ring-2 ring-primary bg-primary/10 shadow-primary/20' : 'bg-background/50 hover:bg-muted/40'}`}
-                        >
-                        <div className="flex items-center justify-between">
-                            <div className="flex-grow">
-                                <h4 className="font-semibold text-foreground text-sm">{template.templateName}</h4>
-                                <p className="text-xs text-muted-foreground">
-                                Mode: {selectedGameDetails.gameModes.find(gm => gm.id === template.gameModeId)?.name || 'N/A'} | 
-                                Time: {template.tournamentTime} | 
-                                Fee: {template.entryFee} | 
-                                Spots: {template.totalSpots}
-                                </p>
-                            </div>
-                            {selectedTemplateIds.has(template.id) && <CheckCircle className="h-5 w-5 text-primary flex-shrink-0 ml-2" />}
-                        </div>
-                        </Card>
-                    ))}
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+              {allEnrichedTemplates.map(template => (
+                <Card key={template.id} className="flex flex-col bg-muted/20 backdrop-blur-sm shadow-lg hover:shadow-primary/20 transition-all duration-300 ease-in-out transform hover:-translate-y-1 rounded-xl overflow-hidden">
+                  <CardHeader className="p-0 relative">
+                    {template.imageUrl ? (
+                      <Image
+                        src={template.imageUrl}
+                        alt={`${template.templateName} banner`}
+                        width={400}
+                        height={180}
+                        className="w-full h-32 object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-32 bg-muted/40 flex items-center justify-center">
+                        <ImageOff className="h-12 w-12 text-muted-foreground/50" />
+                      </div>
+                    )}
+                    <div className="absolute top-2 left-2 bg-card/80 backdrop-blur-sm px-2 py-1 rounded-md shadow flex items-center">
+                      {template.gameIconImageUrl ? (
+                        <Image src={template.gameIconImageUrl} alt={template.gameName} width={16} height={16} className="h-4 w-4 mr-1.5 rounded-sm object-contain"/>
+                      ) : (
+                        <Gamepad2 className="h-4 w-4 mr-1.5 text-primary"/>
+                      )}
+                      <span className="text-xs font-medium text-foreground">{template.gameName}</span>
                     </div>
-                </ScrollArea>
-              ) : (
-                <div className="p-4 border border-dashed rounded-md text-center text-muted-foreground">
-                  <Info className="mx-auto h-8 w-8 mb-2 opacity-50"/>
-                  No daily tournament templates found for {selectedGameDetails?.name || "this game"}. 
-                  Add templates in the 'Manage Game' section.
-                </div>
-              )}
+                  </CardHeader>
+                  <CardContent className="p-4 flex-grow">
+                    <h3 className="text-md font-semibold text-foreground mb-2 truncate" title={template.templateName}>{template.templateName}</h3>
+                    <div className="space-y-1.5 text-xs text-muted-foreground">
+                      <div className="flex items-center"><Clock className="mr-1.5 h-3.5 w-3.5 text-primary/80"/>Time: {template.tournamentTime}</div>
+                      <div className="flex items-center"><BadgeDollarSign className="mr-1.5 h-3.5 w-3.5 text-primary/80"/>Fee: {template.entryFee} (as {adminSelectedRegion === "INDIA" ? "INR" : "USD"})</div>
+                      <div className="flex items-center"><Users className="mr-1.5 h-3.5 w-3.5 text-primary/80"/>Spots: {template.totalSpots}</div>
+                      <div className="flex items-center"><Tag className="mr-1.5 h-3.5 w-3.5 text-primary/80"/>Mode: {template.gameModeId}</div>
+                    </div>
+                  </CardContent>
+                  <CardFooter className="p-4 border-t border-border/30">
+                    <Button
+                      className="w-full transform hover:scale-105 transition-transform"
+                      onClick={() => handleImplementTemplate(template)}
+                      disabled={
+                        processingTemplateId === template.id ||
+                        (!!processingTemplateId && processingTemplateId !== template.id) ||
+                        implementedTodaySet.has(template.id)
+                      }
+                    >
+                      {processingTemplateId === template.id ? (
+                        <Spinner size="small" className="mr-2"/>
+                      ) : implementedTodaySet.has(template.id) ? (
+                        <CheckCircle className="mr-2 h-4 w-4"/>
+                      ) : (
+                        <CalendarClock className="mr-2 h-4 w-4" />
+                      )}
+                      {processingTemplateId === template.id
+                        ? "Implementing..."
+                        : implementedTodaySet.has(template.id)
+                        ? "Implemented for Today"
+                        : "Implement for Today"}
+                    </Button>
+                  </CardFooter>
+                </Card>
+              ))}
             </div>
           )}
         </CardContent>
-        <CardFooter>
-          <Button 
-            className="w-full sm:w-auto transform hover:scale-105 transition-transform"
-            onClick={handleScheduleTournaments}
-            disabled={isScheduling || !selectedGameId || selectedTemplateIds.size === 0 || !startDate || !endDate || isLoadingGameDetails}
-          >
-            {isScheduling ? <Spinner size="small" className="mr-2"/> : <CalendarClock className="mr-2 h-4 w-4" />}
-            {isScheduling ? `Scheduling (${successfulCreations + failedCreations}/${datesToSchedule.length * selectedTemplateIds.size})...` : `Schedule Selected Templates (${selectedTemplateIds.size})`}
-          </Button>
-        </CardFooter>
       </Card>
     </div>
   );
